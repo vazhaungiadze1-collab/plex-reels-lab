@@ -1,0 +1,108 @@
+{
+ "timeline": {
+  "r09": {
+   "brief": "",
+   "comment": "",
+   "content": "reel (ინფორმაცია არ გვაქვს)",
+   "delivery": "",
+   "done": false,
+   "drive": "",
+   "lab": 0,
+   "n": 9,
+   "shoot": ""
+  },
+  "r06": {
+   "brief": "",
+   "comment": "რომელებია დაგეგმილი ჰედლაინები რომ გაუწეროთ ",
+   "content": "reel brief",
+   "delivery": "2026-10-08",
+   "done": false,
+   "drive": "",
+   "lab": 0,
+   "n": 6,
+   "shoot": "2026-10-05"
+  },
+  "r05": {
+   "brief": "",
+   "comment": "რომელებია დაგეგმილი ჰედლაინები რომ გაუწეროთ ",
+   "content": "short reel your day keeps moving",
+   "delivery": "2026-10-05",
+   "done": false,
+   "drive": "",
+   "lab": 0,
+   "n": 5,
+   "shoot": "2026-09-30"
+  },
+  "r01": {
+   "brief": "https://pitch.com/v/plex-reels-briefs-ukuifr/a553bb0f-f34e-4f27-92c5-900f57ab2334 (#3)",
+   "comment": "ამ კონკრეტულზე 15 ში ხომ შესაძლებელი იქნება რომ ედითინგის ეტაპზ ევნახოთ მასალა თუ რამე კორექტირება იქნება საწჭირო რომ დროულად გავიაროთ ?",
+   "content": "short reel (keep it simple)",
+   "delivery": "2026-09-16",
+   "done": true,
+   "drive": "Plex2_1.mp4",
+   "lab": 0,
+   "n": 1,
+   "shoot": "2026-09-14"
+  },
+  "r07": {
+   "brief": "",
+   "comment": "რომელებია დაგეგმილი ჰედლაინები რომ გაუწეროთ ",
+   "content": "reel brief",
+   "delivery": "2026-10-12",
+   "done": false,
+   "drive": "",
+   "lab": 0,
+   "n": 7,
+   "shoot": "2026-10-07"
+  },
+  "r08": {
+   "brief": "",
+   "comment": "",
+   "content": "reel ტესტიმონიალი",
+   "delivery": "2026-10-16",
+   "done": false,
+   "drive": "",
+   "lab": 0,
+   "n": 8,
+   "shoot": "2026-10-09"
+  },
+  "r02": {
+   "brief": "",
+   "comment": "რომელებია დაგეგმილი ჰედლაინები რომ გაუწეროთ ",
+   "content": "short reel cash out",
+   "delivery": "2026-09-23",
+   "done": true,
+   "drive": "Cash out.mp4",
+   "lab": 0,
+   "n": 2,
+   "shoot": "2026-09-18"
+  },
+  "r03": {
+   "brief": "",
+   "comment": "რომელებია დაგეგმილი ჰედლაინები რომ გაუწეროთ ",
+   "content": "short reel  don't stop",
+   "delivery": "2026-09-30",
+   "done": false,
+   "drive": "",
+   "lab": 0,
+   "n": 3,
+   "shoot": "2026-09-23"
+  },
+  "r04": {
+   "brief": "",
+   "comment": "1.ქამინ სუნის ნაცვლად ფექშოთძე WHATS NEXT ? კითხვითი ფორმით დავასრულოდ. მაქსიმალურად დინამიური 2. დრამატურგიულობისთვის საუნდ ეფექტები , ცოტა დაზაბული მუსია ნითიფიკაციაზე ცოტა ემოციურობისთვის მეგრაუნდ მუსიკის ცვლიება მსგავსი საუნდ ეფექტები დაგვჭირდება. 3 სწრაფი ქათები და დინამიური კადრები უნდა იყოს მაქსიმალურად რომ ნოტიფიკაციამდე მოსვლამდე ბევრი აქტი ხდება შესაბამისა ეს  კონკრეტული სცენარი ისეთ სტილზე ხომ არ შეგვიძლია რომ გადავაწყოთ რომ დალუპული ვიდეო ესთეტიკა ქონდე?",
+   "content": "reel Web Platform",
+   "delivery": "2026-10-01",
+   "done": false,
+   "drive": "",
+   "lab": 0,
+   "n": 4,
+   "shoot": "2026-09-24"
+  }
+ },
+ "settings": {
+  "timeline": {
+   "title": "September – October Content"
+  }
+ }
+}

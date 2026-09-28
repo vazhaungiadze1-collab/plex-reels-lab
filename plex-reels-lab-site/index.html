@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="ka">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px/1.5 system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="claude-shim.js"></script>
+</head>
+<body>
+<title>PLEX Reels Content Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600;700;900&family=Inter:wght@400;500;600;700&family=Noto+Sans+Georgian:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: sticky toolbar over a card grid; a right-hand drawer opens each reel as an 8-beat script around the formula octagon */
+/* Layout: sticky toolbar over a card grid; right drawer opens each reel as 8 beats around the formula octagon. Brand: PLEX guideline — dark obsidian base, Plex Green #BFFF40, Titillium + Inter */
+:root{
+  --bg:#121310; --surface:#1B1D18; --ink:#EAEAEA; --muted:#9A9E92; --line:#2C2F27;
+  --lime:#BFFF40; --lime-ink:#BFFF40; --on-lime:#181916; --loop:#40FF9E; --loop-bg:rgba(64,255,158,.08);
+  --soft:#23261F; --warn:#FF8A8A; --warn-bg:rgba(255,100,100,.12); --glow:rgba(191,255,64,.10);
+  --display:"Titillium Web","Noto Sans Georgian","Segoe UI",system-ui,sans-serif;
+  --body:"Inter","Noto Sans Georgian","Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  --cA:#408FFF; --cB:#B58CFF; --cC:#40FF9E; --cD:#FF6464; --cE:#FFB84D; --cF:#BFFF40; --cG:#FF7AC6;
+  --shadow:0 18px 60px rgba(0,0,0,.55); color-scheme:dark;
+}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
+  --bg:#EAEAEA; --surface:#FFFFFF; --ink:#181916; --muted:#5C6056; --line:#D5D8CE;
+  --lime:#BFFF40; --lime-ink:#4A6B00; --on-lime:#181916; --loop:#0B8A55; --loop-bg:#E3F7EC;
+  --soft:#F1F2EC; --warn:#B3261E; --warn-bg:#FDE7E7; --glow:rgba(191,255,64,.25);
+  --cA:#2F6FD6; --cB:#7B4FD0; --cC:#0E9F6A; --cD:#D94040; --cE:#C77800; --cF:#5A8A00; --cG:#C8408E;
+  --shadow:0 18px 50px rgba(24,25,22,.18); color-scheme:light}}
+:root[data-theme="light"]{
+  --bg:#EAEAEA; --surface:#FFFFFF; --ink:#181916; --muted:#5C6056; --line:#D5D8CE;
+  --lime:#BFFF40; --lime-ink:#4A6B00; --on-lime:#181916; --loop:#0B8A55; --loop-bg:#E3F7EC;
+  --soft:#F1F2EC; --warn:#B3261E; --warn-bg:#FDE7E7; --glow:rgba(191,255,64,.25);
+  --cA:#2F6FD6; --cB:#7B4FD0; --cC:#0E9F6A; --cD:#D94040; --cE:#C77800; --cF:#5A8A00; --cG:#C8408E;
+  --shadow:0 18px 50px rgba(24,25,22,.18); color-scheme:light}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55;background-image:radial-gradient(600px 300px at 12% -60px,var(--glow),transparent 70%),linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:auto,48px 48px,48px 48px;background-attachment:fixed}
+.wrap{max-width:1320px;margin:0 auto;padding-inline:20px;padding-block:24px 60px}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--lime-ink);outline-offset:2px;border-radius:6px}
+
+/* header */
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px}
+.brand{display:flex;align-items:center;gap:14px}
+.brand h1{font-family:var(--display);font-weight:800;font-size:clamp(28px,4vw,40px);line-height:1;margin:0;letter-spacing:-.01em}
+.brand h1 span{color:var(--lime-ink)}
+.brand p{margin:4px 0 0;color:var(--muted);font-size:13px}
+.stats{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.stats b{display:block;font-size:22px;color:var(--ink);font-family:var(--display);font-weight:800}
+
+/* formula strip */
+.formula{margin-top:22px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center}
+.formula .oct-mini{width:120px;height:120px}
+.flow{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;min-width:0}
+.fstep{border-radius:10px;padding:8px 10px;background:var(--soft);min-width:0}
+.fstep .t{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.fstep .n{font-weight:700;font-size:13px;line-height:1.25}
+.fstep .d{font-size:12px;color:var(--muted);line-height:1.35;margin-top:2px}
+.fstep.k-hook,.fstep.k-cta{background:var(--lime);color:var(--on-lime)}
+.fstep.k-hook .t,.fstep.k-hook .d,.fstep.k-cta .t,.fstep.k-cta .d{color:var(--on-lime);opacity:.75}
+.fstep.k-loop{background:var(--loop-bg)}
+.fstep.k-loop .n{color:var(--loop)}
+@media (max-width:1000px){.flow{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (max-width:640px){.formula{grid-template-columns:1fr}.formula .oct-mini{display:none}.flow{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* toolbar */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);box-shadow:0 0 0 100vmax var(--bg);clip-path:inset(0 -100vmax);padding-block:14px 12px;margin-top:10px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;border-bottom:1px solid var(--line)}
+.search{flex:1 1 220px;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:0 12px;min-width:0}
+.search input{border:0;background:transparent;padding:10px 0;width:100%;outline:none}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.chip:hover{border-color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.chip.star[aria-pressed="true"]{background:var(--lime);color:var(--on-lime);border-color:var(--lime)}
+.sel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+
+/* grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;margin-top:18px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px;cursor:pointer;text-align:left;transition:transform .15s,border-color .15s}
+.card:hover{transform:translateY(-2px);border-color:var(--muted)}
+.meta{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.meta .num{font-family:var(--mono);font-weight:600;color:var(--ink)}
+.cat{display:inline-flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card h3{margin:0;font-size:15px;font-weight:700;line-height:1.3}
+.hook{font-family:var(--display);font-weight:700;font-size:19px;line-height:1.25;margin:0;text-wrap:balance}
+.beats-mini{display:flex;gap:2px;height:6px;border-radius:3px;overflow:hidden}
+.beats-mini i{display:block;background:var(--soft)}
+.beats-mini i.h,.beats-mini i.c{background:var(--lime)}
+.beats-mini i.l{background:var(--loop)}
+.beats-mini i.v{background:var(--line)}
+.foot{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px;margin-top:auto}
+.pill{border-radius:999px;padding:3px 9px;background:var(--soft);color:var(--ink);white-space:nowrap}
+.pill.val{background:transparent;border:1px solid var(--line)}
+.pill.warn{background:var(--warn-bg);color:var(--warn)}
+.st{margin-left:auto;display:inline-flex;align-items:center;gap:6px;color:var(--muted)}
+.st .dot{background:var(--line)}
+.st.s-review .dot{background:var(--loop)}
+.st.s-ready .dot{background:var(--lime)}
+.empty{padding:60px 0;text-align:center;color:var(--muted)}
+
+/* drawer */
+.scrim{position:fixed;inset:0;background:rgba(10,12,8,.45);z-index:20}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(640px,100%);background:var(--surface);z-index:21;box-shadow:var(--shadow);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.dh{padding:18px 22px 14px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.dh-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.iconbtn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:7px 11px;cursor:pointer;font-size:13px;white-space:nowrap}
+.iconbtn:hover{border-color:var(--muted)}
+.iconbtn.primary{background:var(--lime);color:var(--on-lime);border-color:var(--lime);font-weight:700}
+.dh h2{margin:0;font-family:var(--display);font-weight:800;font-size:28px;line-height:1.1;text-wrap:balance}
+.facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;font-size:13px}
+.facts div{background:var(--soft);border-radius:10px;padding:8px 10px;min-width:0}
+.facts small{display:block;color:var(--muted);font-size:11px;letter-spacing:.04em;text-transform:uppercase}
+.db{overflow-y:auto;padding:18px 22px 30px;display:flex;flex-direction:column;gap:18px}
+.octwrap{display:flex;justify-content:center}
+.octwrap svg{width:100%;max-width:340px;height:auto}
+.oct-node{cursor:pointer}
+.oct-node text{font-family:var(--body);font-size:12px;fill:var(--muted);font-weight:600}
+.oct-node circle{fill:var(--muted)}
+.oct-node.on text{fill:var(--ink)}
+.oct-node.on circle{fill:var(--lime-ink)}
+.beats{display:flex;flex-direction:column;gap:8px}
+.beat{display:grid;grid-template-columns:86px 1fr;gap:12px;padding:12px;border-radius:12px;border:1px solid var(--line);cursor:pointer;transition:border-color .15s,background .15s}
+.beat.on{border-color:var(--lime-ink);background:var(--soft)}
+.beat .lab{font-weight:700;font-size:13px;line-height:1.2}
+.beat .tc{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:4px}
+.beat p{margin:0;font-size:14.5px}
+.beat.k-hook .lab,.beat.k-cta .lab{color:var(--lime-ink)}
+.beat.k-loop{background:var(--loop-bg);border-color:transparent}
+.beat.k-loop .lab{color:var(--loop)}
+.beat.k-loop p{font-style:italic}
+.beat.k-cta p b{display:block;margin-top:4px;font-family:var(--display);font-weight:800;letter-spacing:.02em}
+.note{font-size:13px;border-radius:10px;padding:10px 12px;background:var(--warn-bg);color:var(--warn)}
+.statusrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
+.segs{display:flex;flex-wrap:wrap;gap:6px;font-size:12px}
+.guard{font-size:13px;border:1px dashed var(--line);border-radius:12px;padding:12px 14px;color:var(--muted)}
+.guard b{color:var(--ink)}
+.guard ul{margin:6px 0 0;padding-left:18px;display:grid;gap:2px}
+.tabs{display:flex;gap:4px;margin-top:22px;border-bottom:1px solid var(--line)}
+.tab{border:0;background:transparent;padding:10px 14px;cursor:pointer;font-family:var(--display);font-weight:700;font-size:16px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--lime)}
+.docs{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-top:20px}
+.doc{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.doc .kind{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.doc .kind svg{flex:none}
+.doc h3{margin:0;font-family:var(--display);font-weight:700;font-size:22px;line-height:1.15}
+.doc p{margin:0;color:var(--muted);font-size:14px}
+.doc ul{margin:0;padding-left:18px;font-size:13.5px;display:grid;gap:3px}
+.doc .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
+.doc a.iconbtn{text-decoration:none;display:inline-flex;align-items:center}
+.docnote{margin-top:14px;font-size:13px;color:var(--muted)}
+.tl-head{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:20px}
+.tl-title{flex:1 1 280px;min-width:0;background:transparent;border:1px solid transparent;border-radius:10px;padding:6px 8px;margin-left:-8px;font-family:var(--display);font-weight:700;font-size:26px}
+.tl-title:hover,.tl-title:focus{border-color:var(--line);outline:none;background:var(--surface)}
+.tl-sum{display:flex;gap:6px;flex-wrap:wrap;font-size:12px}
+.tl-save{font-family:var(--mono);font-size:11px;color:var(--muted);min-width:60px}
+.tl-wrap{margin-top:14px;overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.tl{width:100%;border-collapse:collapse;font-size:13.5px;min-width:1180px}
+.tl th{text-align:left;font-family:var(--display);font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:12px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--soft)}
+.tl td{padding:6px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+.tl tr:last-child td{border-bottom:0}
+.tl tr.is-done td{background:linear-gradient(0deg,var(--loop-bg),var(--loop-bg))}
+.tl td.n{font-family:var(--mono);color:var(--muted);padding:13px 10px;width:36px;font-variant-numeric:tabular-nums}
+.tl input[type=text],.tl input[type=url],.tl input[type=date],.tl select,.tl textarea{width:100%;background:transparent;border:1px solid transparent;border-radius:8px;padding:6px 7px;font:inherit;color:inherit;font-variant-numeric:tabular-nums}
+.tl input:hover,.tl select:hover,.tl textarea:hover{border-color:var(--line)}
+.tl input:focus,.tl select:focus,.tl textarea:focus{border-color:var(--lime-ink);background:var(--bg);outline:none}
+.tl .c-content{min-width:200px;font-weight:600}
+.tl .c-lab{width:170px}.tl .c-date{width:140px}.tl .c-link{width:190px}
+.tl textarea{resize:vertical;min-height:34px;min-width:280px;line-height:1.45;field-sizing:content;max-height:220px}
+.lk{display:flex;align-items:center;gap:4px;min-height:34px}
+.lk a{display:inline-flex;align-items:center;gap:5px;max-width:150px;padding:4px 9px;border-radius:999px;background:var(--soft);color:var(--lime-ink);text-decoration:none;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lk a:hover{text-decoration:underline}
+.lk .file{display:inline-block;max-width:150px;padding:4px 9px;border-radius:999px;background:var(--soft);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lk button{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:4px 6px;border-radius:6px}
+.lk button:hover{color:var(--ink);background:var(--soft)}
+.stp{display:inline-block;margin-top:7px;border-radius:999px;padding:3px 9px;font-size:12px;white-space:nowrap;background:var(--soft)}
+.stp.done{background:var(--lime);color:var(--on-lime)}
+.stp.late{background:var(--warn-bg);color:var(--warn)}
+.stp.prod{background:var(--loop-bg);color:var(--loop)}
+.stp.soon{border:1px solid var(--lime-ink);color:var(--lime-ink);background:transparent}
+.tl input[type=checkbox]{width:18px;height:18px;margin:8px 10px;accent-color:var(--lime)}
+.tl .del{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:7px 8px;border-radius:8px;white-space:nowrap}
+.tl .del:hover{color:var(--warn);background:var(--warn-bg)}
+.tl .del.arm{color:var(--warn);background:var(--warn-bg);font-weight:600}
+.labgo{border:0;background:transparent;color:var(--lime-ink);cursor:pointer;font-size:12px;padding:0 7px}
+.tl-empty{padding:30px;text-align:center;color:var(--muted)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.segpick{margin-top:26px;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:0 0 0 1px rgba(191,255,64,.06),0 20px 50px rgba(0,0,0,.25)}
+.segpick .sg{background:var(--bg)}
+.topics-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-top:30px}
+.topics-h h2{margin:0;font-family:var(--display);font-weight:700;font-size:24px}
+.topics-h span{color:var(--muted);font-size:13px}
+.sp-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px}
+.sp-h h2{margin:0;font-family:var(--display);font-weight:700;font-size:24px}
+.sp-h span{color:var(--muted);font-size:13px}
+.segs9{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin-top:12px}
+.sg{text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:12px 14px;cursor:pointer;display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:start}
+.sg:hover{border-color:var(--muted)}
+.sg .no{grid-row:span 2;font-family:var(--display);font-weight:900;font-size:26px;line-height:1;color:var(--muted)}
+.sg .nm{font-weight:600;font-size:14px;line-height:1.3}
+.sg .mt{font-size:12px;color:var(--muted)}
+.sg[aria-pressed="true"]{border-color:var(--lime);background:var(--soft);box-shadow:0 0 0 1px var(--lime) inset}
+.sg[aria-pressed="true"] .no{color:var(--lime-ink)}
+.segbrief{margin-top:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.segbrief>div{border-radius:12px;padding:12px 14px;background:var(--surface);border:1px solid var(--line);min-width:0}
+.segbrief small{display:block;font-family:var(--display);font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:11px;color:var(--muted);margin-bottom:2px}
+.segbrief .big{font-family:var(--display);font-weight:700;font-size:20px;line-height:1.2}
+.sheet-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+.sheet{width:100%;border-collapse:collapse;font-size:13.5px;min-width:520px}
+.sheet th{text-align:left;font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:10px;background:var(--soft);border-bottom:1px solid var(--line)}
+.sheet td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+.sheet tr:last-child td{border-bottom:0}
+.sheet tr{cursor:pointer}
+.sheet tr.on td{background:var(--soft)}
+.sheet td.tc{font-family:var(--mono);font-size:12px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.sheet td.bt{font-weight:700;white-space:nowrap}
+.sheet tr.k-hook td.bt,.sheet tr.k-cta td.bt{color:var(--lime-ink)}
+.sheet tr.k-loop td.bt{color:var(--loop)}
+.sheet tr.k-loop td.sc{font-style:italic}
+.sheet td.shot{color:var(--muted);width:32%}
+.sheet td.sc b{display:block;margin-top:4px;font-family:var(--display);font-weight:900}
+.sheet-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.sheet-bar h3{margin:0;font-family:var(--display);font-weight:700;font-size:18px}
+.seg2{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.seg2 button{border:0;background:transparent;padding:5px 12px;cursor:pointer;font-size:12px;color:var(--muted)}
+.seg2 button[aria-pressed="true"]{background:var(--lime);color:var(--on-lime);font-weight:700}
+.cnt-note{margin-top:14px;color:var(--muted);font-size:13px}
+.bf{display:grid;gap:8px;min-width:0}
+.bf label{display:grid;gap:3px}
+.bf label span{font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.bf textarea{width:100%;resize:vertical;field-sizing:content;min-height:38px;max-height:260px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font:inherit;font-size:14px;line-height:1.45;color:var(--ink)}
+.bf textarea:focus{outline:none;border-color:var(--lime-ink)}
+.beat.k-loop .bf textarea[data-k=script]{font-style:italic}
+.sig{font-family:var(--display);font-weight:900}
+.pv{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.pv-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--surface)}
+.pv-t{font-family:var(--display);font-weight:700;font-size:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pv-m{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.pv-pages{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;align-items:center;gap:18px}
+.pv-page{display:flex;flex-direction:column;align-items:center;gap:6px;max-width:100%}
+.pv-page canvas{max-width:100%;height:auto!important;box-shadow:var(--shadow);border-radius:4px;background:#fff}
+.pv-page span{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.pv-msg{color:var(--muted);margin-top:40px}
+.toast{position:fixed;z-index:50;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px}
+@media (max-width:560px){.facts{grid-template-columns:1fr 1fr}.beat{grid-template-columns:1fr;gap:4px}.dh h2{font-size:24px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg width="44" height="40" viewBox="0 0 44 40" aria-hidden="true"><rect x="0" y="6" width="11" height="26" rx="2" fill="var(--lime)"/><rect x="15" y="12" width="11" height="28" rx="2" fill="var(--lime)"/><rect x="30" y="0" width="11" height="26" rx="2" fill="var(--lime)"/></svg>
+      <div>
+        <h1>PLEX <span>Reels Content Lab</span></h1>
+        <p>50 თემა · Viral formula · Quick timeline · ბრენდის დოკუმენტაცია სააგენტოსთვის</p>
+      </div>
+    </div>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tabReels" data-tab="reels" aria-selected="true" aria-controls="viewReels">Reels Lab</button>
+    <button class="tab" role="tab" id="tabTime" data-tab="time" aria-selected="false" aria-controls="viewTime">Quick Timeline</button>
+    <button class="tab" role="tab" id="tabDocs" data-tab="docs" aria-selected="false" aria-controls="viewDocs">Documentation</button>
+  </div>
+
+  <div id="viewReels" role="tabpanel" aria-labelledby="tabReels">
+  <section class="formula" aria-label="ფორმულა">
+    <svg class="oct-mini" viewBox="0 0 120 120" aria-hidden="true" id="octMini"></svg>
+    <div class="flow" id="flow"></div>
+  </section>
+
+  <section class="segpick" aria-label="Choose a segment">
+    <div class="sp-h"><h2>Choose a segment</h2><span>9 segments · PLEX Customer Segmentation</span></div>
+    <div class="segs9" id="segs9"></div>
+    <div class="segbrief" id="segBrief"></div>
+  </section>
+  <div class="topics-h"><h2>Topics to Shoot</h2><span id="topicsSub"></span></div>
+  <main class="grid" id="grid"></main>
+  
+  </div>
+
+  <section id="viewTime" role="tabpanel" aria-labelledby="tabTime" hidden>
+    <div class="tl-head">
+      <input id="tlTitle" class="tl-title" aria-label="Timeline title" value="September – October Content">
+      <div class="tl-sum" id="tlSum"></div>
+      <span class="tl-save" id="tlSave"></span>
+      <button class="iconbtn" id="tlUndo" hidden>↶ Undo delete</button>
+      <button class="iconbtn primary" id="tlAdd">+ Add row</button>
+    </div>
+    <div class="tl-wrap">
+      <table class="tl">
+        <thead><tr><th>#</th><th>Content</th><th>Lab topic</th><th>Brief link</th><th>Shoot</th><th>Delivery</th><th>Status</th><th>Done</th><th>Drive link</th><th>Comment</th><th><span class="sr">Delete</span></th></tr></thead>
+        <tbody id="tlBody"><tr><td colspan="11" class="tl-empty">Timeline იტვირთება…</td></tr></tbody>
+      </table>
+    </div>
+    <p class="docnote" id="tlNote">ცვლილებები ავტომატურად ინახება და ყველასთვის ჩანს, ვინც ამ გვერდს ხსნის. ლინკის შესაცვლელად დააჭირე ✎.</p>
+  </section>
+
+  <section id="viewDocs" role="tabpanel" aria-labelledby="tabDocs" hidden>
+    <div class="docs" id="docs"></div>
+    <p class="docnote">„Open“ PDF-ს აქვე, გვერდზე ხსნის. „Download“ დადასტურების შემდეგ ფაილს შენს მოწყობილობაზე ინახავს.</p>
+  </section>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden role="dialog" aria-modal="true" aria-labelledby="dTitle"></aside>
+<div class="pv" id="pv" hidden role="dialog" aria-modal="true" aria-labelledby="pvTitle">
+  <div class="pv-bar"><div style="min-width:0"><div class="pv-t" id="pvTitle"></div><div class="pv-m" id="pvMeta"></div></div>
+    <div style="display:flex;gap:8px"><button class="iconbtn primary" id="pvDl">Download</button><button class="iconbtn" id="pvClose" aria-label="Close">✕</button></div></div>
+  <div class="pv-pages" id="pvPages"></div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script>
+const BEATS=[
+ {k:'hook',en:'Hook',ka:'ჰუკი',t:'0–2 sec',w:2,d:'A scene that stops the scroll'},
+ {k:'promise',en:'Promise',ka:'დაპირება',t:'2–4 sec',w:2,d:'What the viewer gets by the end'},
+ {k:'val',en:'Value 1',ka:'ღირებულება',t:'4–8 sec',w:4,d:'The situation and a first concrete fact or action'},
+ {k:'loop',en:'Open Loop 1',ka:'ღია მარყუჟი',t:'8–10 sec',w:2,d:'A question we answer later'},
+ {k:'val',en:'Value 2',ka:'ღირებულება',t:'10–15 sec',w:5,d:'PLEX’s visible action (proof)'},
+ {k:'loop',en:'Open Loop 2',ka:'ღია მარყუჟი',t:'15–17 sec',w:2,d:'Keeps them watching to the end'},
+ {k:'val',en:'Value 3',ka:'ღირებულება',t:'17–23 sec',w:6,d:'Payoff: life moves on'},
+ {k:'cta',en:'CTA',ka:'მოწოდება',t:'23–27 sec',w:4,d:'One next step + NEXT MOVE IS PLEX'}
+];
+const CATS={
+ A:{n:'ცხოვრების მომენტები',c:'var(--cA)'},B:{n:'ქალაქის ხმა',c:'var(--cB)'},C:{n:'მითების მსხვრევა',c:'var(--cC)'},
+ D:{n:'ნდობა და ანტი-სქემი',c:'var(--cD)'},E:{n:'დახლს მიღმა',c:'var(--cE)'},F:{n:'დიდი ნაბიჯები',c:'var(--cF)'},G:{n:'კულტურა და ტრენდი',c:'var(--cG)'}
+};
+const TEST=[1,6,12,14,22,27,35,41,44,50];
+// [cat,title,segment,format,value,hook,promise,v1,loop1,v2,loop2,v3,cta,flag]
+const RAW=[
+['A','ქირის დღე','ფრილანსერი / ექსპატი','Split-screen','Convenience','„მეპატრონე ლარს ითხოვს. ჩემი ხელფასი USDT-შია.“ ეკრანი გაყოფილია: ქირის შეტყობინება და USDT-ის ჩარიცხვა.','25 წამში ნახავ, როგორ იქცევა USDT ქირად ისე, რომ დღე არ დაკარგო.','სახლიდანვე წერს PLEX-ს: თანხა, ვალუტა, ფილიალი. პასუხში იგებს, რა წამოიღოს და რას ელოდოს.','ეკრანზე: „ერთი რამ მეგონა, რომ ვიცოდი. არ ვიცოდი.“','დახლთან ოპერატორი კურსის ნაცვლად საბოლოო თანხას აჩვენებს: ზუსტად რამდენ ლარს მიიღებს.','ეკრანზე: „ქირაზე მნიშვნელოვანი მაინც ბოლო კადრია.“','ქირა გადახდილია, ის კი მეგობართან ყავაზე მიდის. ტექსტი: „მომავალ თვეს — იგივე მარშრუტი.“','შენი ხელფასიც USDT-შია? მოგვწერე თანხა და ფილიალი.',''],
+['A','პირველი ხელფასი საქართველოში','ექსპატი (EN ვერსია)','POV დღიური','Human Service','“My first rent in Tbilisi was paid in USDT.” პერსონაჟი ახალ ბინაში ყუთებს შორის ზის.','სამი რამ, რაც ახალჩამოსულმა პირველ კვირაში ფულზე უნდა იცოდეს.','#1: ბარათი ყველგან არ მუშაობს. ლარი ყოველდღიურად გჭირდება. კადრი: ბაზრობა, ნაღდი ფული.','“#3 was the one I didn’t expect.”','#2: ოფისი, სადაც ინგლისურად აგიხსნიან. ოპერატორი მშვიდად ხსნის ნაბიჯებს.','“And now, #3…”','#3: შეგიძლია დარეკო, როცა რაღაც გაუგებარია. კადრი: ტელეფონში შენახული კონტაქტი „PLEX“.','ახალი ხარ საქართველოში? შეინახე ეს ვიდეო და ჩვენი კონტაქტი.','ინგლისურენოვანი მომსახურების ხელმისაწვდომობა ფილიალების მიხედვით'],
+['A','პარასკევი, 18:00','ფრილანსერი / ახალგაზრდა პროფესიონალი','საათის countdown','Speed','საათი ეკრანზე: პარასკევი, 17:24. „შაბათ-კვირის გეგმა გაქვს. ნაღდი ფული — არა.“','ნახე, როგორ მოასწრო ყველაფერი ფილიალის დახურვამდე.','17:26. ტელეფონიდან წერს PLEX-ს თანხას და ფილიალს.','საათი ჩქარდება. „მაგრამ ერთი რამ დამავიწყდა…“','17:41. ოპერატორი ახსენებს პირადობას; ის ბრუნდება მანქანასთან და იღებს.','17:52. „ახლა ყველაზე მთავარი.“','18:10. მეგობრების მანქანაში ჯდება. კადრი: გზა მთისკენ.','გეგმა გაქვს? ჯერ მოგვწერე, შემდეგ წადი.','სამუშაო საათები და მომსახურების რეალური დრო'],
+['A','ქორწილის ბიუჯეტი','წყვილი, დანაზოგი კრიპტოში','მიკრო-დრამა','Trust','„დანაზოგი ბლოკჩეინზეა. რესტორანი ნაღდს ითხოვს.“','როგორ მოამზადა წყვილმა დიდი თანხა ისე, რომ ერთმანეთს არ ეჩხუბა.','ცხრილი ეკრანზე: რესტორანი, ფოტოგრაფი, კაბა. ყველა ხარჯს თავისი ვადა აქვს.','საცოლე: „ყველაფერი ერთად? თუ…?“ საქმრო ჩუმდება.','PLEX-ში კონსულტაცია: ნაწილ-ნაწილ, ხარჯების ვადების მიხედვით; ყოველ ჯერზე წინასწარ ცნობილი საბოლოო თანხა.','„ბოლო ხარჯი ყველაზე მნიშვნელოვანი აღმოჩნდა.“','ქორწილის დღე, პირველი ცეკვა. ტექსტი: „ფული მზად იყო. ჩვენ — მით უმეტეს.“','დიდი დღე გაქვს წინ? დაგეგმე გაცვლა წინასწარ.',''],
+['A','ბებიას ნაღდი ესმის','შვილიშვილი / ახალგაზრდა','ემოციური მოკლე ფილმი','Human Service','„ბებიას კრიპტოს ვერ ავუხსნი. საჩუქარი კი მინდა.“','ერთი საჩუქარი, ორი თაობა და ფული, რომელიც ორივემ გაიგო.','ბიჭი ტელეფონში USDT-ს უყურებს, მერე ბებიის ძველ ფოტოს.','„საჩუქარი ფული არ იყო.“','PLEX-ში ნაწილს ცვლის. ოპერატორი თანხას კონვერტში დებს — პატარა ადამიანური ჟესტი.','„ბებიამ ერთი კითხვა დამისვა.“','ბებია კონვერტს ხსნის: „ეს ის ინტერნეტის ფულია?“ იცინიან. ახალი სათვალე.','კრიპტო ყველაზე ლამაზია, როცა ცხოვრებაში ჩანს.',''],
+['A','მამა vs შვილი','55+ და მათი შვილები','მიკრო-დრამა','Trust','მამა: „ეგ ინტერნეტის ფულია. ჰაერია.“','რამ დაარწმუნა მამა, რომელიც ბანკსაც ძლივს ენდობა.','შვილი არ კამათობს, მამა ფილიალში მიჰყავს. კადრი: შესასვლელი, ხალხი, დახლი.','მამა ჩუმად ათვალიერებს ყველაფერს. „ერთ რამეს ეძებდა.“','მამა ოპერატორს ეკითხება: „ლიცენზია გაქვთ?“ ოპერატორი აჩვენებს: VASP ლიცენზია, საქართველოს ეროვნული ბანკი.','„და მაშინ მამამ ის თქვა, რასაც არასდროს ამბობს.“','გარეთ მამა: „კარგი. ოღონდ შემდეგ ჯერზე მეც მოვალ.“','შენს მშობლებსაც ეჭვი აქვთ? მოიყვანე, ორივეს აგიხსნით.',''],
+['A','პირველი ფრილანს-ჰონორარი','სტუდენტი / დამწყები ფრილანსერი','POV','Expertise','„პირველი შეკვეთა. პირველი $300. USDT-ში. ახლა რა?“','სამი კითხვა, რომელიც ყველა დამწყებს აქვს, და პასუხები 20 წამში.','კითხვა 1: სად გადავცვალო? პასუხი: ლიცენზირებულ ადგილას, სადაც ხედავ, ვის ელაპარაკები.','„მესამე კითხვა ყველაზე უხერხული იყო.“','კითხვა 2: რამდენს მივიღებ? ოპერატორი საბოლოო თანხას ეკრანზე აჩვენებს.','„აი, ის უხერხული.“','კითხვა 3: „სულელური კითხვა მაქვს…“ პასუხი: „სულელური კითხვა აქ არ არსებობს.“ ღიმილი.','პირველი ჰონორარი მიიღე? მოდი კითხვებით.',''],
+['A','ნომადის პირველი 24 საათი','ციფრული ნომადი (EN ვერსია)','Vlog','Convenience','“24 hours in Georgia: SIM, taxi, khachapuri… and lari.”','ჩეკლისტი, რომელიც ყველა ახალჩამოსულს სჭირდება.','SIM ✓ ტაქსი ✓ ხაჭაპური ✓. ტაქსი ნაღდს ითხოვს ✗.','“The fix was easier than ordering khachapuri.”','PLEX-ის ოფისი: ინგლისურად, ნაბიჯ-ნაბიჯ. ჩეკლისტზე: ლარი ✓.','“Bonus tip at the end.”','ბონუსი: კონტაქტის შენახვა შემდეგი ჩარიცხვისთვის. საღამოს ხედი ნარიყალადან.','“Save this before your trip.”',''],
+['A','ზღვა და ერთი პატარა პრობლემა','ტურისტი, ბათუმი','ტურისტული POV','Convenience','ბათუმი. ზღვა. ხინკალი. „ბარათი არ გადის.“','როგორ გადაარჩინა ერთმა შეტყობინებამ შვებულების დღე.','მეგობრები სანაპიროზე რჩებიან, ის რუკაზე უახლოეს PLEX-ს ეძებს.','„მეგობრებმა ფსონი დადეს: დავბრუნდებოდი თუ არა ლანჩამდე.“','ოფისში ახსნა მის ენაზე და საბოლოო თანხა ეკრანზე.','„ვინ მოიგო ფსონი?“','ბრუნდება, ხინკალი ჯერ ცხელია. მეგობარი ფსონს იხდის.','ბათუმში ხარ? PLEX-ის ფილიალი ახლოსაა.','მომსახურების ენები ბათუმის ფილიალში'],
+['A','მოგება ეკრანზე მოგება არ არის','კრიპტოტრეიდერი / ინვესტორი','Talking head','Expertise','„ტრეიდერის ყველაზე რთული კლიკი არის Take Profit.“','რატომ არ ითვლება მოგება, სანამ ცხოვრებაში არ გამოჩნდება.','ეკრანზე მწვანე ციფრი. შემდეგ კადრი: ეს ციფრი არაფერს ყიდულობს.','„ყველაზე ხშირი შეცდომა აქ იწყება.“','შეცდომა: ნაჩქარევი გაცვლა ანონიმთან. PLEX-ში: დოკუმენტირებული ოპერაცია და წინასწარ ცნობილი თანხა.','„ბოლოს — რაზე დავხარჯე.“','მოგება იქცევა მშობლების მოგზაურობად და არა ლამბორჯინად. „ესაა ჩემი მოგება.“','მოგება ცხოვრებად აქციე.',''],
+['B','ქალაქი სამ ვალუტაში','ქალაქის ფართო აუდიტორია','City essay','Convenience','„ყავას ლარით ვიხდი. ხელფასს დოლარით ვიღებ. დანაზოგი USDT-შია.“','თბილისი, რომელიც ერთდროულად სამ ვალუტაში ცხოვრობს.','სამი სახე, სამი ვალუტა: ბარისტა, IT დეველოპერი, ბინის მყიდველი.','„მაგრამ მათ ერთი საერთო აქვთ.“','სამივე ერთსა და იმავე ოფისში შედის, სხვადასხვა მიზეზით.','„და ეს საერთო ვალუტა არ არის.“','საერთო მათი შემდეგი ნაბიჯია. სამივე ქალაქში თავის გზას აგრძელებს.','რა ვალუტაშიც არ უნდა ცხოვრობდე — NEXT MOVE.',''],
+['B','ერთი ქუჩა, ათი ენა','ექსპატები / საერთაშორისო','ქუჩის პორტრეტი','Human Service','„ერთი გამზირი. ათი ენა. ერთი ოფისი.“','ვინ ცხოვრობს დღეს თბილისში, ათ წამში.','სწრაფი პორტრეტები: ინდოელი დეველოპერი, პოლონელი დიზაინერი, ქართველი ბარისტა.','„ყველას ერთი კითხვა დავუსვით.“','კითხვა: „ვის მიმართავ, როცა ფული სხვა ვალუტაში გჭირდება?“ პასუხები განსხვავდება.','„ბოლო პასუხი ყველაზე მოკლე იყო.“','ბოლო: „PLEX. ქართულად, ინგლისურად — როგორც გინდა.“','შენ რა ენაზე ლაპარაკობ?','მომსახურების ენები'],
+['B','გამარჯობა · Hello · Привет · नमस्ते','მრავალენოვანი აუდიტორია','სწრაფი მონტაჟი','Human Service','ოთხი მისალმება, ოთხი სახე, ერთი დახლი.','ერთი ოფისი, რომელიც ოთხ ენაზე იწყებს საუბარს.','თითო სტუმარი თავის ენაზე ესალმება, ოპერატორი იმავე ენაზე პასუხობს.','„მეხუთე სტუმარმა ყველა გაგვაცინა.“','ოპერატორები ერთსა და იმავე ნაბიჯს ხსნიან სხვადასხვა ენაზე, ერთნაირი სიცხადით.','„აი, ის მეხუთე.“','მეხუთე: ბავშვი, რომელიც „მადლობას“ ოთხივე ენაზე ამბობს.','NEXT MOVE — ნებისმიერ ენაზე.','რომელ ენებზე მომსახურებს გუნდი რეალურად'],
+['B','რა არის შენი next move?','ფართო აუდიტორია','ვოქს-პოპ სერია','Human Service','მიკროფონი გამვლელს: „რა არის შენი შემდეგი ნაბიჯი?“','ათი ადამიანი, ათი გეგმა და ერთი კითხვა ბოლოს.','პასუხები: ბინა, სტარტაპი, ქორწილი, სწავლა იტალიაში.','„ერთი პასუხი ყველაზე გულწრფელი იყო.“','მეორე კითხვა: „ფული რა ფორმით გაქვს ამისთვის?“ ლარი, დოლარი, USDT.','„ბოლოს — ის გულწრფელი.“','ბავშვი: „ჩემი next move? ნაყინი.“ ტექსტი: „ყველა ნაბიჯს თავისი ფული სჭირდება.“','კომენტარში დაწერე: შენი next move?',''],
+['B','კრიპტო ერთი სიტყვით','ფართო / სკეპტიკოსი','ვოქს-პოპი + ექსპერტი','Expertise','„აღწერეთ კრიპტო ერთი სიტყვით.“','ხუთი მითი ქუჩიდან და ერთი ადამიანი, რომელიც ყოველდღე ამ საქმეშია.','პასუხები: „სქემა“, „ლატარია“, „მომავალი“, „არ ვიცი“.','„ერთი პასუხი ნაწილობრივ მართალი იყო.“','PLEX-ის სპეციალისტი თითოეულს ერთი წინადადებით პასუხობს, ჟარგონის გარეშე.','„ჩვენი სიტყვა ბოლოსთვის შევინახეთ.“','სპეციალისტი: „ჩვენთვის კრიპტო ინსტრუმენტია. ისტორია შენი ცხოვრებაა.“','შენი სიტყვა? დაწერე კომენტარში.',''],
+['B','ბათუმი ზამთარში vs ზაფხულში','ბათუმის აუდიტორია / ინვესტორი','Split-screen','Convenience','„ერთი ქალაქი. ორი ეკონომიკა.“','რა იცვლება ბათუმში სეზონის მიხედვით და რა — არა.','ზაფხული: ტურისტები, ხალხმრავალი სანაპირო. ზამთარი: ცარიელი ბულვარი, მშენებლობები.','„ერთი რამ ორივე კადრში ერთნაირია.“','ზაფხულში ტურისტს ნაღდი სჭირდება. ზამთარში ინვესტორი ბინისთვის ამზადებს თანხას.','„მიხვდი, რა?“','ორივე ეკრანზე ერთი და იგივე კარი: PLEX. სეზონი იცვლება, ადგილი რჩება.','ბათუმი. ნებისმიერ სეზონზე.',''],
+['B','ქოვორქინგის დღიური','დისტანციური თანამშრომელი','მოკუმენტარი','Convenience','„ლეპტოპი, ყავა და ოთხი დროის სარტყელი.“','დისტანციური მუშაობის დღე და ერთი ფინანსური დეტალი, რომელზეც არავინ ლაპარაკობს.','ზარი ნიუ-იორკთან, ჩატი ბერლინთან, კლიენტი დუბაიში.','„ანაზღაურება ყველაზე უცნაურ დროს მოვიდა.“','23:40 — ჩარიცხვა USDT-ში. ის PLEX-ს წინასწარ წერს თანხას დილისთვის.','„და დილა ასე დაიწყო.“','დილით ფილიალი, ყავა და ისევ ქოვორქინგი. „ლოკალური საქმე — ლოკალურ ხალხთან.“','გლობალურად მუშაობ? ადგილობრივად გაცვალე.',''],
+['B','10 წუთი ოფისამდე','თბილისის / ბათუმის ცენტრი','Walking POV','Convenience','„ორბიდან PLEX-მდე: 10 წუთი, 1 ყავა.“','გზა, რომელსაც ფეხით გაივლი, და რას ნახავ გზად.','POV გასეირნება: ქუჩა, ყავის ჯიხური, ფასადები.','„ბოლო მოსახვევში ერთი რამ გელოდება.“','ოფისის შესასვლელი ახლოდან: მისამართი, ნიშანი, განათებული სივრცე.','„ბოლოს — სამუშაო საათები.“','ეკრანზე მისამართი და სამუშაო საათები. ყავა ჯერ თბილია.','შეინახე მისამართი.','მარშრუტის დრო და სამუშაო საათები'],
+['C','TRC20 თუ ERC20','დამწყები / ყოველდღიური მომხმარებელი','ანალოგია','Expertise','„ერთმა ასომ შეიძლება ძვირი დაგიჯდეს.“','20 წამში გაიგებ, რატომ არის ქსელი ისეთივე მნიშვნელოვანი, როგორც მისამართი.','ანალოგია: ამანათი სწორ ქუჩაზე, მაგრამ სხვა ქალაქში. მისამართი იგივეა, ქალაქი — სხვა.','„ყველაზე ხშირი შეცდომა კი ეს არ არის.“','TRC20 და ERC20 ორი „ქალაქია“. გაგზავნამდე ორივე მხარე ერთ ქსელზე უნდა შეთანხმდეს.','„აი, ის შეცდომა.“','შეცდომა: დაზუსტების გარეშე გაგზავნა. გამოსავალი: ერთი კითხვა ოპერატორს Send-მდე.','გაგზავნამდე გვკითხე.',''],
+['C','USDT 30 წამში','დამწყები','Talking head','Expertise','„USDT ≠ დოლარი ბანკში. აი, რატომ.“','30 წამი, და მეგობრებს უკეთ აუხსნი, ვიდრე უმეტესობა.','USDT სთეიბლქოინია, რომლის ღირებულება დოლართანაა მიბმული.','„მაგრამ „მიბმული“ ყველაფერს არ ნიშნავს.“','ის ბლოკჩეინზე მოძრაობს: ბანკის საათები არ აქვს, მაგრამ ქსელი და საფულე თავად უნდა აირჩიო.','„ბოლოს — რისთვის იყენებენ რეალურად.“','რეალური მიზეზები: ხელფასი, ფრილანსი, საერთაშორისო გადახდა. „ინსტრუმენტია, არა ლატარია.“','შეინახე და გაუგზავნე, ვისაც სჭირდება.',''],
+['C','საუკეთესო კურსი ≠ საუკეთესო გარიგება','ყოველდღიური / ტრეიდერი','ხელით გამოთვლა','Trust','„ყველაზე კარგი კურსი ხშირად ყველაზე კარგი გარიგება არ არის.“','ერთი გამოთვლა ქაღალდზე, და შემდეგ ჯერზე სხვანაირად შეადარებ.','ორი შეთავაზება ქაღალდზე: A-ს კურსი უკეთესია, B-ს — ოდნავ უარესი.','„მაგრამ ორი სტრიქონი ჯერ არ დაგვიწერია.“','ვამატებთ საკომისიოს და პირობებს. საბოლოო თანხა იცვლება.','„და ერთი რამ ქაღალდზე საერთოდ არ ჩანს.“','ის, რაც არ ჩანს: ვის მიმართავ, თუ რაღაც ისე ვერ წავიდა. ოპერატორი ყოველთვის საბოლოო თანხას აჩვენებს.','გაცვლამდე იკითხე საბოლოო თანხა.','საკომისიოს სტრუქტურა; კონკურენტის დასახელების გარეშე'],
+['C','რატომ გეკითხებიან, საიდან გაქვს ფული','დამწყები / დიდი თანხის კლიენტი','დიალოგი დახლთან','Trust','„თუ ამას არავინ გეკითხება — ეს უნდა გაშინებდეს.“','რატომ არის KYC შენი დაცვა და არა ბარიერი.','კლიენტი, ოდნავ გაღიზიანებული: „პირადობა რაში გჭირდებათ?“','ოპერატორი იღიმება: „ორი მიზეზია. მეორე შენზეა.“','მიზეზი 1: ეროვნული ბანკის ლიცენზიით მომუშავე სერვისი ვალდებულია, იცოდეს, ვისთან მუშაობს. ვერიფიკაცია Sumsub-ით, ტელეფონიდან.','„ახლა მეორე.“','მიზეზი 2: შენი ოპერაცია დოკუმენტირებულია. სადაც ანონიმი არაფერს გკითხავს, იქ პრობლემის დროს არც არაფერს გიპასუხებს.','კითხვები KYC-ზე? მოგვწერე.','Proof of Funds-ის მოთხოვნის შემთხვევები'],
+['C','ჯიბე vs სეიფი','დამწყები','ობიექტებით ახსნა','Expertise','„შენი კრიპტო ჯიბეშია თუ სეიფში?“','hot და cold wallet ორი ობიექტით, 20 წამში.','ჯიბე = hot wallet: ხელთ გაქვს, ყოველდღიურად იყენებ, მაგრამ ნაკლებად დაცულია.','„მესამე ობიექტი ყველაზე სახიფათოა.“','სეიფი = cold wallet: ოფლაინ, უფრო დაცული, ყოველდღიურად ნაკლებად მოსახერხებელი.','„აი, ის მესამე.“','მესამე: სტიკერი seed-ფრაზით მონიტორზე. „ეს — არასდროს.“','შეინახე. seed-ფრაზა კი არავის.',''],
+['C','3 კითხვა გაცვლამდე','ყველა სეგმენტი','Quick-fire სია','Expertise','„სანამ Send-ს დააჭერ — სამი კითხვა.“','სამი კითხვა, რომელიც ნერვებს დაგიზოგავს.','1. რომელ ქსელზე აგზავნი? ორივე მხარე ერთსა და იმავეზე უნდა იყოს.','„მესამეს უმეტესობა ივიწყებს.“','2. საბოლოოდ რამდენს მიიღებ? არა კურსი, არამედ თანხა.','„და აი, მესამე.“','3. ვის დაურეკავ, თუ რამე ისე ვერ წავა? თუ პასუხი არ გაქვს, ჯერ ეს მოაგვარე.','შეინახე შემდეგი გაცვლისთვის.',''],
+['C','კრიპტო ლექსიკონი ბებიისთვის','ფართო / 55+','იუმორისტული სკეტჩი','Expertise','„ბებო, „ვოლეტი“ საფულეა.“','ხუთი სიტყვა, რომელსაც ბებიაც გაიგებს.','ვოლეტი — საფულე. ბლოკჩეინი — სოფლის დიდი დავთარი, რომელსაც ყველა ხედავს.','ბებია: „მოიცა… ერთი მეც ვიცი.“','სთეიბლქოინი — ფული, რომელიც დოლარს მიჰყვება. გაზი — გაგზავნის საფასური.','„ბებიას სიტყვა ყველაზე ზუსტი აღმოჩნდა.“','ბებია: „ნდობა ვიცი რაც არის. ნდობაა, როცა ადამიანს სახეზე უყურებ.“','გაუგზავნე შენს ბებიას.',''],
+['C','რა ხდება, როცა Send-ს აჭერ','დამწყები','ვიზუალური ანალოგია','Trust','„შენი თანხა ახლა გზაშია. აი, სად არის.“','ტრანზაქციის სამი ეტაპი კურიერის ანალოგიით.','ეტაპი 1: ამანათი გაიგზავნა, ტრანზაქცია ქსელშია. კურიერი ოფისს ტოვებს.','„ეტაპ 2-ზე ყველა ნერვიულობს.“','ეტაპი 2: დადასტურებები. კურიერი საგუშაგოებს გადის; დრო ქსელზეა დამოკიდებული.','„მესამე ეტაპზე ადამიანი ჩნდება.“','ეტაპი 3: მიღება. ოპერატორი ამოწმებს სტატუსს და გიხსნის, რას ელოდო.','სტატუსი გაუგებარია? გვკითხე.','არ დავპირდეთ დაჩქარებას ან არასწორი გადარიცხვის დაბრუნებას'],
+['D','ვინ არის ეკრანის მეორე მხარეს?','P2P მომხმარებელი','ჩატი → რეალური ოფისი','Trust','ჩატის ეკრანი: „ფულს უგზავნი ნიკს CryptoKing_777.“','STOP TRUSTING STRANGERS — გაგრძელება.','ავატარი ფოტოს გარეშე. შეტყობინება: „ჩქარა, კურსი იცვლება.“','„ერთი კითხვა, რომელსაც ანონიმი ვერ გიპასუხებს.“','კითხვა: „სად ხარ?“ ჩატი დუმს. ჭრა: რეალური ოფისი, მისამართი, სახეები.','„ბოლოს — სხვაობა ერთ კადრში.“','გაყოფილი ეკრანი: ბნელი ჩატი და განათებული დახლი, სადაც ადამიანი გიყურებს.','გაცვალე იქ, სადაც სახე და მისამართი ჩანს.',''],
+['D','ზედმეტად კარგი კურსი','ყველა სეგმენტი','ედიტორიული ხმა','Trust','„თუ კურსი ზედმეტად კარგია — ის შენთვის არ არის კარგი.“','სქემის ანატომია ოთხ ნაბიჯად.','ნაბიჯი 1: შეთავაზება ბაზარზე უკეთესია. ნაბიჯი 2: „ახლავე, თორემ გაქრება.“','„მესამე ნაბიჯი ყველაზე ეშმაკურია.“','ნაბიჯი 3: პატარა სატესტო ოპერაცია წარმატებით მთავრდება, რომ ნდობა მოიპოვონ.','„მეოთხე ნაბიჯი ყველამ ვიცით.“','ნაბიჯი 4: დიდი თანხა და დუმილი. დაცვა: ლიცენზია, მისამართი, დოკუმენტი.','ეჭვი გაქვს? ჯერ გვკითხე.',''],
+['D','ყალბი „მხარდაჭერა“ Telegram-ში','ყველა სეგმენტი','სკრინების რეკონსტრუქცია','Trust','„გამარჯობა, PLEX Support ვარ.“ ნამდვილად?','სამი ნიშანი, რომ მხარდაჭერა ყალბია.','ნიშანი 1: პირველი ისინი წერენ, შენ კი არაფერი გიკითხავს.','„ნიშანი 3 ყველაზე ხშირია.“','ნიშანი 2: ითხოვენ seed-ფრაზას ან კოდს. PLEX ამას არ ითხოვს.','„აი, ნიშანი 3.“','ნიშანი 3: სახელი თითქმის ერთნაირია. ეკრანზე ჩვენი ოფიციალური არხების სია.','შეინახე ოფიციალური არხები.','ოფიციალური არხების სია'],
+['D','ლიცენზია: ქაღალდი თუ დაპირება','სკეპტიკოსი / VIP','Talking head (ფაუნდერი)','Trust','„ყველა ამბობს: „სანდო ვარ“. ჩვენ ლიცენზია გვაქვს.“','რას ნიშნავს VASP სტატუსი შენთვის და არა ჩვენთვის.','1: ლიცენზია გაცემულია საქართველოს ეროვნული ბანკის მიერ. ოპერაცია დოკუმენტირებულია.','„მეორე მნიშვნელობა ნაკლებად ჩანს.“','2: AML/KYC ყოველდღიურად: Sumsub ვერიფიკაცია, AMLBot საფულის შემოწმება, ტრანზაქციების მონიტორინგი.','„მესამე — ყველაზე ადამიანური.“','3: გაქვს კომპანია, მისამართი და ადამიანი, ვისაც მიმართავ.','გადაამოწმე, შემდეგ გაცვალე.','Sumsub/AMLBot ლოგოების გამოყენების უფლება'],
+['D','ავტოსადგომი ღამით','P2P / ნაღდი ფულის მომხმარებელი','კინემატოგრაფიული კონტრასტი','Trust','„ნაღდი. ღამე. ავტოსადგომი. რა შეიძლება მოხდეს?“','ორი გზა ერთი და იმავე თანხისთვის.','ბნელი კადრი: მანქანის ფარები, ჩანთა, ნერვიული ხელი.','„მეორე ვერსია სხვანაირად დაიწყო.“','დღის შუქი: განათებული ოფისი, მოსაცდელი, ოპერატორი.','„ერთ ვერსიაში ფინალი ყოველთვის ცნობილია.“','მეორე ვერსიის ფინალი: მშვიდი გასვლა, დოკუმენტი ხელში. პირველის ფინალი გაურკვეველია.','აირჩიე, სად იცვლი.',''],
+['D','თუ რამე ისე ვერ წავიდა','ყველა სეგმენტი','ზარის რეკონსტრუქცია','Human Service','„ყველაზე მნიშვნელოვანი კითხვა: ვის დავურეკო?“','რა ხდება, როცა ოპერაციაში რაღაც გაუგებარია.','კლიენტი ნერვიულობს, სტატუსი არ იცვლება. რეკავს.','„პასუხის პირველმა სიტყვამ ყველაფერი შეცვალა.“','ოპერატორი: „მოდი, ერთად შევამოწმოთ.“ ამოწმებს ჰეშს, ხსნის ეტაპს.','„ბოლოს — რა ვიცით და რა არა.“','გულწრფელი პასუხი: რა არის ჩვენს ხელში და რა — ქსელის. კლიენტი მშვიდდება.','შეინახე ჩვენი ნომერი.','რა შეუძლია PLEX-ს პრობლემის დროს'],
+['D','Red flag / Green flag','ყველა სეგმენტი','Quick-fire','Trust','🚩 ანონიმური ნიკი. 🟢 მისამართი და ლიცენზია.','ნდობის ტესტი ოთხ წყვილად.','🚩 „ჩქარა, კურსი იცვლება“ / 🟢 „დრო გქონდეთ, წაიკითხეთ.“','„ბოლო წყვილი ყველაზე ხშირად გამოგვრჩება.“','🚩 მხოლოდ ჩატი / 🟢 ოფისი, სადაც შეხვალ. 🚩 კურსი / 🟢 საბოლოო თანხა.','„აი, ის.“','🚩 „დოკუმენტი არ გვჭირდება“ / 🟢 „ოპერაცია დოკუმენტირებული იქნება.“','მონიშნე მეგობარი, ვისაც სჭირდება.',''],
+['E','ოპერატორის ერთი დღე','ფართო აუდიტორია','Day-in-the-life','Human Service','„08:59. ჯერ არ გაგვიღია, უკვე გვწერენ.“','ერთი დღე დახლს მიღმა, რაც კლიენტს არ ჩანს.','დილა: სისტემის შემოწმება, კურსის განახლება, პირველი შეტყობინებები.','„შუადღეს ყველაზე რთული კლიენტი მოვიდა.“','შუადღე: დამწყები, რომელსაც ყველაფერი ეშინია. ოპერატორი ნაბიჯ-ნაბიჯ, აუჩქარებლად ხსნის.','„დღის ბოლოს მან რაღაც მოიტანა.“','საღამოს იგივე კლიენტი ყავით ბრუნდება: „მადლობა, რომ არ მაჩქარეთ.“','ჩვენთან ადამიანები გხვდებიან.',''],
+['E','ყველაზე უცნაური კითხვა','ფართო აუდიტორია','გუნდის ვოქს-პოპი','Expertise','„ყველაზე უცნაური კითხვა, რაც ოდესმე დაგვისვეს…“','გუნდი იხსენებს და სერიოზულად პასუხობს.','ოპერატორი 1: „ბიტკოინს ჯიბეში თუ ჩავიდებ?“','„ნომერ პირველი ყველამ ერთხმად დაასახელა.“','ოპერატორი 2: „ჩემს კატას USDT რომ ჰქონდეს?“ სიცილი, შემდეგ მოკლე სერიოზული პასუხი.','„აი, ნომერ პირველი.“','ნომერი პირველი და პასუხი, რომელიც რეალურად გამოგადგება. „სულელური კითხვა არ არსებობს.“','შენი კითხვა? დაწერე, შემდეგ ეპიზოდში ვუპასუხებთ.','კითხვები გუნდის რეალური გამოცდილებიდან'],
+['E','როგორ ითვლება ფული','ფართო აუდიტორია','ASMR / პროცესი','Trust','ხმის გარეშე. მხოლოდ ფულის მთვლელის ხმა.','სიზუსტე, რომელიც ისმის.','მაკრო: მთვლელი, შემოწმების ნათურა, თანხის ეკრანი.','ეკრანზე: „ერთი ნაბიჯი ყოველთვის ორჯერ კეთდება.“','ორჯერ დათვლა კლიენტის თვალწინ; ციფრი ეკრანზე ემთხვევა.','ეკრანზე: „ბოლო ხმა ყველაზე ლამაზია.“','კონვერტის დახურვის ხმა. ხელიდან ხელში. „დათვლილია.“','NEXT MOVE IS PLEX.','დათვლის რეალური პროცედურა'],
+['E','ახალი თანამშრომლის პირველი კვირა','ფართო / employer brand','მოკუმენტარი','Expertise','„პირველი კვირა PLEX-ში: რას მასწავლეს?“','სამი წესი, რომელსაც ყველა ახალი თანამშრომელი პირველ დღეს სწავლობს.','წესი 1: კურსი კი არა, საბოლოო თანხა აჩვენე.','„მესამე წესი არსად წერია.“','წესი 2: კლიენტს არასდროს აჩქარებ.','„აი, მესამე.“','წესი 3: „თუ არ იცი, იკითხე. თუ კლიენტმა არ იცის, აუხსენი.“','ასე ვმუშაობთ.','წესები გუნდთან შესათანხმებელია'],
+['E','ერთი რჩევა გუნდისგან','ფართო აუდიტორია','Rapid-fire talking heads','Expertise','„5 ადამიანი. 5 რჩევა. 15 წამი.“','რჩევები, რომლებსაც ჩვენს მეგობრებს ვაძლევთ.','„ქსელი გადაამოწმე.“ „seed-ფრაზა არავის.“','„მეხუთე რჩევა კრიპტოს არ ეხება.“','„საბოლოო თანხა იკითხე.“ „ანონიმს დიდ თანხას ნუ მიანდობ.“','„მეხუთე.“','„ჯერ გეგმა, მერე გაცვლა. ფული ინსტრუმენტია.“','შეინახე.',''],
+['E','პირველი ვიზიტი: კარიდან დახლამდე','დამწყები','ერთკადრიანი POV','Convenience','„პირველად მოდიხარ? აი, ზუსტად რა გელოდება.“','ერთი კადრი, ჭრის გარეშე, კარიდან გასვლამდე.','შესვლა, მისალმება, „რა გჭირდებათ?“','„ერთ ნაბიჯზე ყველას კითხვა უჩნდება.“','პირადობის დადასტურება; ოპერატორი ხსნის, რატომ.','„ბოლო ნაბიჯი ყველაზე მოკლეა.“','საბოლოო თანხის დადასტურება, ოპერაცია და გასვლა ქუჩაში.','ახლა იცი. მოდი.',''],
+['E','რატომ ფიზიკური ოფისი ციფრული ფულისთვის','ფართო აუდიტორია','ფაუნდერის talking head','Trust','„ციფრულ ფულს ვცვლით. ოფისი რატომ გვჭირდება?“','ბრენდის მანიფესტი 40 წამში.','მიზეზი 1: ნდობა იწყება იქ, სადაც ადამიანს სახეზე უყურებ.','„მეორე მიზეზი კრიპტოზე ძველია.“','მიზეზი 2: ფული ყოველთვის ადამიანებს შორის მოძრაობდა: ბაზარი, მოედანი, დახლი.','„მესამე მიზეზი შენზეა.“','მიზეზი 3: როცა რაღაც გაუგებარია, შეგიძლია შემოხვიდე. „ამიტომ ვართ აქ.“','NEXT MOVE IS PLEX.',''],
+['F','გასაღები 14:00-ზე','უძრავი ქონების მყიდველი (EN ვერსია)','მიკრო-დრამა','Premium','„ბინის გასაღებს 14:00-ზე ვიღებ. თანხა ჯერ USDT-შია.“','რატომ იყო ეს დღე მშვიდი, თუმცა შეიძლებოდა არ ყოფილიყო.','ერთი კვირით ადრე: კონსულტაცია PLEX-ში. მოცულობა, ვალუტა, თარიღი, დოკუმენტები.','„ერთ დოკუმენტზე ყველაფერი იყო დამოკიდებული.“','ოპერატორი წინასწარ აზუსტებს დოკუმენტებს: ვერიფიკაცია, საჭიროების შემთხვევაში Proof of Funds, ანგარიშსწორების დოკუმენტი.','„14:00. ნოტარიუსთან.“','ხელმოწერა, გასაღები, აივანი ზღვის ხედით.','ბინას ყიდულობ? დაგეგმე გაცვლა გარიგებამდე.','ვადები და რა დოკუმენტებს გასცემს PLEX'],
+['F','მანქანა ნანახია','ავტომობილის მყიდველი','Countdown','Speed','„გამყიდველი ნაღდს ელოდება. ხვალ დილით.“','ერთი საღამო და მზადყოფნა დილისთვის.','საღამოს ზარი PLEX-ში: თანხა, დრო, ფილიალი.','„დილით სიურპრიზი იყო — კარგი.“','დილით ყველაფერი შეთანხმებულია: ოპერატორმა უკვე იცის, რატომ მოვიდა.','„და გამყიდველმა ერთი რამ იკითხა.“','გამყიდველი: „სად გაცვალე?“ — „PLEX.“ გასაღები, ძრავის ხმა.','დიდი შენაძენი? ჯერ დაგვირეკე.','მოცულობა და მომზადების ვადა'],
+['F','ხელფასები 25-ში','ბიზნესი / მეწარმე','ბიზნესის POV','Expertise','„კლიენტმა USDT-ში გადაიხადა. გუნდს ლარი სჭირდება.“','როგორ მუშაობს ბიზნესი კრიპტოსთან ყოველთვიურად, ქაოსის გარეშე.','კალენდარი: 25 რიცხვი, ხელფასი. ანგარიშზე: USDT.','„ბუღალტერს ერთი კითხვა ჰქონდა.“','PLEX-თან ყოველთვიური რიტმი: წინასწარ შეთანხმებული მოცულობა და საკონტაქტო პირი.','„აი, ბუღალტრის კითხვა.“','ბუღალტერი: „დოკუმენტი?“ ინვოისი და ანგარიშსწორების დოკუმენტაცია მზადაა. გუნდი ხელფასს იღებს.','ბიზნესი კრიპტოსთან მუშაობს? მოდი შეხვედრაზე.','დისტანციური მოდელის ხელმისაწვდომობა ამ სცენარისთვის'],
+['F','მშვიდი ოთახი','VIP / HNWI','Quiet luxury','Premium','„დიდი თანხა. მშვიდი ოთახი. არანაირი ხმაური.“','რას ნიშნავს პრემიუმი, როცა ამ სიტყვას არ იყენებ.','დეტალები: წინასწარ მომზადებული დოკუმენტები, წყალი მაგიდაზე, ერთი ადამიანი.','ეკრანზე: „რაც არ ჩანს, ყველაზე მნიშვნელოვანია.“','არავინ ჩქარობს. ოპერაციის ყველა დეტალი წინასწარაა შეთანხმებული.','ეკრანზე: „ბოლო დეტალი.“','კლიენტი გადის, ტელეფონში უკვე შენახულია ერთი კონტაქტი.','პერსონალური მომსახურება — წინასწარი ჩაწერით.','პერსონალური მომსახურების რეალური ფორმატი'],
+['F','D-7 → D-Day','დიდი ტრანზაქციის კლიენტი','კალენდრის სტრუქტურა','Expertise','„დიდი გაცვლა ბოლო დღეს არ იგეგმება.“','შვიდი დღე, სამი ნაბიჯი, ნაკლები სტრესი.','D-7: კონსულტაცია. მოცულობა, ვალუტა, ფილიალი.','„D-3-ზე ყველაზე ხშირი შეცდომა ხდება.“','D-3: დოკუმენტების შემოწმება. შეცდომა მათი ბოლო დღისთვის გადადებაა.','„D-Day ყველაზე მოსაწყენი დღე გამოდის.“','D-Day: ყველაფერი მზადაა. „მოსაწყენი“ აქ საუკეთესო კომპლიმენტია.','დიდი თანხა გაქვს გასაცვლელი? დაიწყე D-7-ზე.','რეალური ვადები'],
+['F','რიელტორის პერსპექტივა','B2B / რიელტორი','ტესტიმონიალი','Trust','„გარიგება თითქმის ჩაიშალა. მიზეზი კრიპტო იყო.“','რიელტორი ყვება, რა ისწავლა.','ისტორია: მყიდველს თანხა USDT-ში ჰქონდა, გამყიდველს ლარი სურდა.','„ერთი კვირა დავკარგეთ ერთი მიზეზის გამო.“','მიზეზი: არავინ იცოდა, სად და როგორ გაეცვალა სწორად.','„ახლა სხვანაირად ვმუშაობ.“','„ახლა დეველოპერი PLEX-თან პარტნიორობს: უცხოელი მყიდველი USDT-ით იხდის, ჩვენ ლარს ვიღებთ, დოკუმენტებით.“','დეველოპერი ან რიელტორი ხარ? გახდი PLEX-ის პარტნიორი.','რეალური რიელტორი და მისი თანხმობა'],
+['G','ლარი ბლოკჩეინზე','ფართო / ტექ-აუდიტორია','ედიტორიული voiceover','Expertise','„ლარი ბლოკჩეინზე? რას ნიშნავს ეს შენთვის.“','ერთი სიახლე და სამი შედეგი ყოველდღიურობისთვის.','რა არის: ლარზე მიბმული ციფრული ტოკენი.','„მეორე შედეგზე ყველაზე ნაკლებად ლაპარაკობენ.“','შედეგი 1: ლარი ბლოკჩეინის ლოგიკით. შედეგი 2: ახალი კითხვები რეგულაციაზე.','„მესამე — პირდაპირ შენზე.“','შედეგი 3: მეტი არჩევანი და მეტი საჭიროება, რომ ვინმემ აგიხსნას.','გამოიწერე, ვაგრძელებთ.','GELT-ის ფაქტები'],
+['G','ტემპის ტესტი','ყოველდღიური / ბიზნესი','Split-screen რბოლა','Speed','„ერთი დილა. ორი გზა. ვინ დაასრულებს პირველი?“','გამოცდილების შედარება და არა ციფრების.','მარცხნივ: რიგი, ფორმა, „ხვალ მობრძანდით“. მარჯვნივ: შეტყობინება PLEX-ს.','„ერთ მომენტზე ორივე გაჩერდა.“','ორივეს აჩერებს პირადობის დადასტურება: წესი ყველასთვისაა. სხვაობა ისაა, როგორ აგიხსნიან.','„და ფინიში.“','მარჯვენა ეკრანზე უკვე ყავას სვამს, მარცხნივ ფორმას ავსებს. „დღე შენია.“','შენი დილა — შენი არჩევანი.','ბანკის დასახელების გარეშე'],
+['G','დღე, რომელიც კრიპტომ გადაიხადა','ფართო აუდიტორია','Lifestyle მონტაჟი','Convenience','„ეს დღე USDT-მ გადაიხადა.“','ერთი დღე და ყველაფერი, რაც შესაძლებელი გახდა.','დილა: ყავა. შუადღე: სახელოსნო. ყველა გადახდა ლარით.','„დილით ეს ფული ჯერ ბლოკჩეინზე იყო.“','ფლეშბეკი: დილის 10 წუთი PLEX-ში.','„საღამოს — მთავარი.“','საღამო: მეგობრების ვახშამი, ანგარიში მის ხელშია. „კრიპტო — ცხოვრებაში.“','PLEX makes crypto useful in real life.',''],
+['G','„კრიპტო ბიჭების თემაა“','ქალი ფრილანსერები / მეწარმეები','POV / ტესტიმონიალი','Human Service','„კრიპტო ბიჭების თემაა.“ ვინ თქვა?','სამი ქალი, სამი ხელფასი და ერთი სტერეოტიპი.','დიზაინერი ბერლინელი კლიენტით, მარკეტერი დუბაის სტარტაპით, ბინის მყიდველი.','„სამივეს ერთნაირი პირველი გამოცდილება ჰქონდა.“','პირველად სხვაგან: „მოდი, აგიხსნი, გოგო“ ტონი. PLEX-ში: თანაბარი საუბარი.','„ახლა ისინი მეგობრებს უხსნიან.“','ლაპარაკობენ ქსელზე, საბოლოო თანხაზე, KYC-ზე თავდაჯერებით. „ახლა ჩვენი თემაა.“','მონიშნე ქალი, რომელიც ხელფასს კრიპტოში იღებს.','']
+];
+// EN shot sheet per topic: 8 beats, each "shot idea|draft script"
+const EN={
+1:["Split screen: rent text vs USDT alert|“My landlord wants lari. My salary is in USDT.”","Phone close-up, calendar on the 1st|In 25 seconds: how USDT becomes rent without losing the day.","At home, typing a message to PLEX|She messages PLEX from the couch: amount, currency, branch. The reply says what to bring and what to expect.","Walking to the branch, text on screen|On screen: “There was one thing I thought I knew. I didn’t.”","Counter: operator shows the final amount|The operator skips the rate and shows the final amount — exactly how many lari she gets.","Hands holding cash, a beat of pause|On screen: “The rent isn’t the point. The last shot is.”","Café with a friend, laughing|Rent paid. She’s off to coffee with a friend. “Next month — same route.”","End card with logo|Paid in USDT? Send us the amount and your branch."],
+2:["New flat, sitting between boxes|“My first rent in Tbilisi was paid in USDT.”","Selfie to camera, handheld|Three money things every newcomer should know in week one.","Market stall, card declined, cash handed over|#1: Cards don’t work everywhere. You need lari every day.","Walking, text overlay|“#3 was the one I didn’t expect.”","PLEX counter, conversation in English|#2: A place that explains it all in English, step by step.","Close-up, a smile|“And now, #3…”","Phone: saving the contact “PLEX”|#3: You can call when something is unclear.","End card|New in Georgia? Save this video — and our contact."],
+3:["Big clock 17:24, packed backpack|“Friday, 17:24. Weekend plans: yes. Cash: no.”","Friends honking outside|Watch her make it before the branch closes.","17:26, texting PLEX|17:26 — she texts PLEX the amount and branch.","Clock speeds up, she freezes|“But I forgot one thing…”","17:41, runs back to the car for her ID|17:41 — the operator mentions ID. She runs back for it.","17:52 on screen|17:52. “Now the most important part.”","18:10, car pulls onto a mountain road|18:10 — she jumps in the car. The road heads for the mountains.","End card|Got plans? Message us first, then go."],
+4:["Couple at a table, spreadsheet open|“Our savings are on the blockchain. The restaurant wants cash.”","Close on ring and laptop|How a couple prepared a big sum without a single fight.","Screen list: venue, photographer, dress|Every cost has its own deadline.","Bride looks up, groom goes quiet|“All at once? Or…?”","Consultation at PLEX, calendar on the desk|Exchange in parts by due date — final amount known each time.","Slow push-in on the couple|“The last expense mattered most.”","First dance at the wedding|“The money was ready. So were we.”","End card|Big day ahead? Plan the exchange early."],
+5:["Young man on the sofa, phone in hand|“I can’t explain crypto to my grandma. But I want to give her a gift.”","Old family photo on a shelf|One gift, two generations, money both of them understood.","USDT balance on phone, then the photo|He looks from his balance to grandma’s photo.","Text overlay|“The gift wasn’t the money.”","Operator places cash in an envelope|He exchanges a part; the operator hands it over in an envelope.","Walking up an old stairwell|“Grandma asked me one question.”","Grandma opens envelope, laughs; new glasses|“Is this that internet money?” They both laugh.","End card|Crypto looks best in real life."],
+6:["Dad at the kitchen table, skeptical|Dad: “That’s internet money. Thin air.”","Son grabs the car keys|What convinced a dad who barely trusts banks.","Entering the branch, dad looking around|The son doesn’t argue — he takes dad to the branch.","Dad studies the room in silence|“He was looking for one thing.”","Operator shows the NBG licence|Dad: “Do you have a licence?” Operator: VASP licence, National Bank of Georgia.","Close on dad’s face|“Then dad said something he never says.”","Outside, dad smiling|“Fine. But next time I’m coming too.”","End card|Parents doubt crypto? Bring them — we’ll explain to both."],
+7:["Student at laptop, $300 notification|“First client. First $300. In USDT. Now what?”","Text overlay: 3 questions|Three questions every beginner has — answered in 20 seconds.","Question card, then branch exterior|Q1: Where do I exchange? Somewhere licensed, where you see who you’re talking to.","Awkward grin|“The third question was the awkward one.”","Operator shows the final amount|Q2: How much will I get? The operator shows the final amount.","Pause, embarrassed look|“Here’s the awkward one.”","Operator smiles back|“I have a silly question…” — “There are no silly questions here.”","End card|First payment? Come with questions."],
+8:["Arrivals hall, suitcase, vlog to camera|“24 hours in Georgia: SIM, taxi, khachapuri… and lari.”","Checklist graphic|The checklist every newcomer needs.","Ticks on screen; taxi wants cash|SIM ✓ Taxi ✓ Khachapuri ✓ — the taxi wants cash ✗.","Talking to camera|“The fix was easier than ordering khachapuri.”","PLEX branch, service in English|PLEX: in English, step by step. Lari ✓.","Text: bonus tip|“Bonus tip at the end.”","Sunset at Narikala, saving the contact|Save the contact for your next payment.","End card|Save this before your trip."],
+9:["Beach table, card declined|Batumi. Sea. Khinkali. “Card declined.”","Friends staring at him|How one message saved a vacation day.","Walking the boulevard, map on phone|Friends stay on the beach; he finds the nearest PLEX.","Friends shake on a bet|“My friends bet I wouldn’t be back before lunch.”","Counter, explained in his language|Explained in his language, final amount on screen.","Text overlay|“Who won the bet?”","Back at the table, khinkali still steaming|Khinkali still hot. A friend pays up.","End card|In Batumi? PLEX is close by."],
+10:["Trader talking head, dark desk|“A trader’s hardest click is Take Profit.”","Same shot, leaning in|Why profit doesn’t count until it shows up in real life.","Green number on screen, cut to empty hands|A green number buys nothing.","Talking head|“This is where the most common mistake starts.”","Anonymous chat vs PLEX counter|Rushing with a stranger vs a documented exchange with a known final amount.","Talking head|“Finally — what I spent it on.”","Parents at the airport with suitcases|Profit becomes a trip for his parents. Not a Lamborghini. “That’s my profit.”","End card|Turn profit into life."],
+11:["Street montage, paying for coffee|“Coffee in lari. Salary in dollars. Savings in USDT.”","Aerial of Tbilisi|A city living in three currencies at once.","Portraits: barista, developer, apartment buyer|Three faces, three currencies.","VO over the street|“But they have one thing in common.”","All three walk into the same branch|Same office, different reasons.","VO|“And it isn’t a currency.”","Each walks off their own way|What they share is the next move.","End card|Whatever currency you live in."],
+12:["Busy avenue, crowd|“One avenue. Ten languages. One office.”","Quick portrait cuts|Who lives in Tbilisi today — in ten seconds.","Portraits: developer, designer, barista|An Indian developer, a Polish designer, a Georgian barista.","Interviewer with mic|“We asked everyone the same question.”","Vox pop answers|“Who do you go to when you need another currency?”","Text overlay|“The last answer was the shortest.”","Last person points to PLEX|“PLEX. Georgian, English — your call.”","End card|What language do you speak?"],
+13:["Four faces, four greetings|Gamarjoba · Hello · Привет · नमस्ते.","Wide shot of the counter|One office that starts the conversation in four languages.","Each guest greets, operator answers in kind|Each guest is answered in their own language.","Text overlay|“Guest number five made us all laugh.”","Operators explaining the same step|Same step, different languages, same clarity.","Door opens|“Here’s number five.”","A kid says thank you in four languages|A kid says “thank you” in all four.","End card|NEXT MOVE — in any language."],
+14:["Mic to a passer-by|“What’s your next move?”","Quick cuts|Ten people, ten plans, one last question.","Answers montage|An apartment, a startup, a wedding, studying in Italy.","Interviewer to camera|“One answer was the most honest.”","Second question to the same people|“What form is the money in?” Lari, dollars, USDT.","Text overlay|“Last — the honest one.”","Kid with an ice cream|“My next move? Ice cream.” Every move needs its own money.","End card|Comment your next move."],
+15:["Mic on the street|“Describe crypto in one word.”","Cut to a PLEX specialist waiting|Five street myths — and one person who does this every day.","Answers montage|“Scam.” “Lottery.” “Future.” “No idea.”","Text overlay|“One answer was half right.”","Specialist replies to each|One sentence each, no jargon.","Specialist smiles|“We saved our word for last.”","Specialist to camera|“For us crypto is a tool. The story is your life.”","End card|Your word? Drop it in the comments."],
+16:["Split: crowded vs empty boulevard|“One city. Two economies.”","Seasonal title cards|What changes in Batumi by season — and what doesn’t.","Summer tourists / winter construction|Summer: tourists. Winter: new buildings.","Text overlay|“One thing is the same in both shots.”","Tourist needs cash / investor prepares funds|Tourists need cash; investors prepare funds for property.","Text overlay|“Guess what?”","The same PLEX door in both frames|The season changes. The door stays.","End card|Batumi. Any season."],
+17:["Laptop, coffee, four clocks|“A laptop, a coffee, four time zones.”","Mockumentary title|A remote workday — and one money detail nobody talks about.","Calls: New York, Berlin, Dubai|Calls with New York, chats with Berlin, a client in Dubai.","Night shot, phone lights up|“My pay arrived at the weirdest hour.”","23:40 USDT alert, texting PLEX|23:40 — USDT lands. She messages PLEX to plan for the morning.","Sunrise|“And the morning started like this.”","Branch, coffee, back to the desk|Local work, local people.","End card|Working global? Exchange local."],
+18:["POV walk begins|“From Orbi to PLEX: 10 minutes, 1 coffee.”","Coffee in hand|The walk — and what you’ll see on the way.","Street, kiosk, façades|Street, coffee stand, façades.","Turning a corner|“Around the last corner…”","Entrance close-up, signage|The entrance: address, sign, bright interior.","Text overlay|“Finally — opening hours.”","Address and hours on screen|Coffee still warm.","End card|Save the address."],
+19:["Big letters: TRC20 / ERC20|“One letter can cost you.”","Presenter holding a parcel|Why the network matters as much as the address.","Parcel at the right street, wrong city|Same address, different city.","Presenter|“But that’s not the most common mistake.”","Two “cities” graphic|Both sides must agree on the network before sending.","Presenter|“Here it is.”","Finger over Send, asks the operator|Sending without checking. The fix: one question before Send.","End card|Ask us before you send."],
+20:["Talking head, bold text|“USDT ≠ dollars in a bank. Here’s why.”","Talking head|30 seconds, and you’ll explain it better than most.","Simple graphic: USDT ↔ $|USDT is a stablecoin pegged to the dollar.","Talking head|“But ‘pegged’ doesn’t mean everything.”","Graphic: blockchain, wallet, network|No bank hours — but you choose the network and wallet.","Talking head|“Finally — what people actually use it for.”","Icons: salary, freelance, payment|Salary, freelance, international payments. A tool, not a lottery.","End card|Save it and send it to someone who needs it."],
+21:["Hand writing on paper|“The best rate is often not the best deal.”","Paper close-up|One calculation — and you’ll compare differently next time.","Two offers, A better than B|Offer A has a better rate than B.","Pen pauses|“But we haven’t written two lines yet.”","Adding fees and terms, totals flip|Add fees and terms. The final amount changes.","Pen taps blank space|“And one thing never shows on paper.”","Operator shows the final amount|Who you call if something goes wrong. Always ask for the final amount.","End card|Ask for the final amount before you exchange."],
+22:["Customer at the counter, frowning|“If nobody asks you this, that should scare you.”","Operator, calm|Why KYC protects you.","Customer asks about ID|“Why do you need my ID?”","Operator smiles|“Two reasons. The second one is about you.”","Sumsub verification on a phone|A service licensed by the National Bank must know its clients. Verification via Sumsub, on your phone.","Text overlay|“Now the second.”","Document handed over|Your transaction is documented. An anonymous trader won’t answer when things go wrong.","End card|Questions about KYC? Message us."],
+23:["Presenter holds a wallet and a small safe|“Is your crypto in your pocket or in a safe?”","Objects on a table|Hot vs cold wallets, with two objects.","Wallet slides into a pocket|Pocket = hot wallet: handy, daily, less protected.","Presenter|“The third object is the most dangerous.”","Small safe closes|Safe = cold wallet: offline, safer, less convenient.","Presenter|“Here’s the third.”","Sticky note with seed phrase on a monitor|A sticky note with your seed phrase. Never.","End card|Save this. Seed phrase — nobody."],
+24:["Finger hovering over Send|“Before you hit Send — three questions.”","Text overlay|Three questions that save your nerves.","Question card 1|Which network? Both sides must be on the same one.","Presenter|“Most people forget the third.”","Question card 2|What will you actually receive — the amount, not the rate?","Presenter|“Here’s the third.”","Question card 3, phone contacts|Who do you call if something goes wrong? No answer? Sort that first.","End card|Save it for your next exchange."],
+25:["Grandson and grandma at the kitchen table|“Grandma, a ‘wallet’ is a purse.”","Grandma, skeptical|Five words even grandma will get.","Props: purse, big notebook|Wallet — a purse. Blockchain — a big village ledger everyone can see.","Grandma raises a finger|“Wait… I know one too.”","Props: dollar bill, stamp|Stablecoin — money that follows the dollar. Gas — the sending fee.","Text overlay|“Grandma’s word was the most accurate.”","Grandma to camera|“Trust is when you look someone in the eye.”","End card|Send this to your grandma."],
+26:["Phone: “sent” screen|“Your money is on its way. Here’s where.”","Courier graphic|Three stages of a transaction, courier style.","Courier leaves the office|Stage 1: sent — the transaction is on the network.","Courier waiting at a gate|“Stage 2 is where everyone gets nervous.”","Checkpoints graphic|Stage 2: confirmations. Timing depends on the network.","Text overlay|“At stage 3, a person shows up.”","Operator checks status with the client|Stage 3: received. The operator checks and explains what to expect.","End card|Status unclear? Ask us."],
+27:["Chat screen, anonymous avatar|“You’re sending money to CryptoKing_777.”","Text overlay|STOP TRUSTING STRANGERS — part two.","Chat: “hurry, the rate is changing”|No photo. “Hurry, the rate is changing.”","Cursor blinking|“One question a stranger can’t answer.”","Types “Where are you?”, cut to the real office|“Where are you?” Silence. Cut: real office, address, faces.","Text overlay|“The difference, in one frame.”","Split: dark chat vs bright counter|A dark chat vs a lit counter where someone looks you in the eye.","End card|Exchange where you can see a face and an address."],
+28:["Editorial VO over dark type|“If a rate looks too good, it isn’t good for you.”","Four-step graphic|Anatomy of a scam in four steps.","Steps 1–2 graphics|A better-than-market offer. “Now, or it’s gone.”","VO|“Step three is the sneakiest.”","Small test trade succeeds|A small test trade works — to earn your trust.","VO|“We all know step four.”","Silence, then licence/address/document icons|A big amount, then silence. Protection: licence, address, documents.","End card|Not sure? Ask us first."],
+29:["Telegram DM from “PLEX Support”|“Hi, I’m PLEX Support.” Really?","Text overlay|Three signs that support is fake.","Unprompted incoming DM|Sign 1: they message you first.","Text overlay|“Sign 3 is the most common.”","DM asks for the seed phrase|Sign 2: they ask for your seed phrase or a code. PLEX never does.","Text overlay|“Here’s sign 3.”","Lookalike username, then official list|Sign 3: a near-identical username. On screen: our official channels.","End card|Save our official channels."],
+30:["Founder talking head|“Everyone says ‘trust me’. We have a licence.”","Founder|What a VASP licence means for you, not for us.","Licence document close-up|1: Licensed by the National Bank of Georgia. Every operation documented.","Founder|“The second meaning is less visible.”","Screens: verification, wallet screening|2: Daily AML/KYC — Sumsub, AMLBot, transaction monitoring.","Founder|“The third is the most human.”","Team, address, front door|3: A company, an address, and a person to talk to.","End card|Check first. Then exchange."],
+31:["Night parking lot, headlights|“Cash. Night. Parking lot. What could go wrong?”","Title card|Two ways to exchange the same amount.","Nervous hands, a bag|Headlights, a bag, nervous hands.","Hard cut to daylight|“Version two starts differently.”","Bright office, waiting area|Daylight: a bright office, a waiting area, an operator.","Text overlay|“In one version, the ending is always known.”","Calm exit with a document|A calm exit, document in hand. The other ending — unknown.","End card|Choose where you exchange."],
+32:["Client pacing with phone|“The most important question: who do I call?”","Text overlay|What happens when something is unclear.","Status unchanged, he calls|The status isn’t changing. He calls.","Phone ringing|“The first word of the answer changed everything.”","Operator checks the hash on screen|“Let’s check it together.” She checks the hash and explains.","Text overlay|“Finally — what we know and what we don’t.”","Client exhales|An honest answer: what’s on our side, what’s on the network’s.","End card|Save our number."],
+33:["Split screen, red / green|🚩 Anonymous username. 🟢 Address and licence.","Text overlay|A trust test in four pairs.","Pair 1|🚩 “Hurry, the rate is changing” / 🟢 “Take your time, read it.”","Text overlay|“The last pair is the one we miss most.”","Pairs 2–3|🚩 Chat only / 🟢 An office you can walk into. 🚩 Rate / 🟢 Final amount.","Text overlay|“Here it is.”","Pair 4|🚩 “No documents needed” / 🟢 “Your transaction will be documented.”","End card|Tag a friend who needs this."],
+34:["08:59, phone buzzing, shutters up|“08:59. We’re not open yet — already getting messages.”","Title|A day behind the counter.","Morning prep montage|System check, rate update, first messages.","Operator glances at the door|“At noon, the toughest client came in.”","Nervous beginner, patient explanation|A nervous first-timer. Step by step, no rush.","Clock moves to evening|“By the end of the day, she brought something.”","Same client returns with coffee|“Thanks for not rushing me.”","End card|Real people meet you here."],
+35:["Team lined up, laughing|“The weirdest question we’ve ever been asked…”","Title|The team remembers — and answers seriously.","Operator 1|“Can I put bitcoin in my pocket?”","Team|“Everyone named number one.”","Operator 2, a laugh, then an answer|“What if my cat had USDT?” A laugh, then a real answer.","Text overlay|“Here’s number one.”","Number one plus a useful answer|No silly questions.","End card|Your question? Comment — we’ll answer next episode."],
+36:["Macro: money counter, sound only|No voice. Just the counter.","Text overlay|Precision you can hear.","Macro: counter, UV lamp, display|Counter, check lamp, display.","Text overlay|“One step is always done twice.”","Counted twice in front of the client|Counted twice, in front of the client. The numbers match.","Text overlay|“The last sound is the best.”","Envelope sealed, handed over|Hand to hand. “Counted.”","End card|NEXT MOVE IS PLEX."],
+37:["New hire with a first-day badge|“My first week at PLEX: what did they teach me?”","Title|Three rules every new hire learns on day one.","Rule 1 card, trainer|Show the final amount, not just the rate.","New hire|“Rule three isn’t written anywhere.”","Rule 2 card|Never rush a client.","Text overlay|“Here’s rule three.”","Trainer to camera|“If you don’t know, ask. If the client doesn’t know, explain.”","End card|That’s how we work."],
+38:["Five faces in a grid|“5 people. 5 tips. 15 seconds.”","Text overlay|Tips we give our own friends.","Tips 1–2, rapid cuts|“Check the network.” “Seed phrase — nobody.”","Text overlay|“Tip five isn’t about crypto.”","Tips 3–4|“Ask for the final amount.” “Don’t trust big sums to strangers.”","Text overlay|“Number five.”","Tip 5|“Plan first, exchange second. Money is a tool.”","End card|Save it."],
+39:["POV at the door|“First time? Here’s exactly what to expect.”","Text overlay|One take, no cuts — from door to exit.","Walk in, greeting, question|Walk in, hello, “How can we help?”","Text overlay|“One step makes everyone ask questions.”","ID verification, explained|ID check — and why.","Text overlay|“The last step is the shortest.”","Confirm final amount, exit to the street|Confirm the final amount, done, back on the street.","End card|Now you know. Come by."],
+40:["Founder in the office|“We exchange digital money. Why do we need an office?”","Founder|Our manifesto in 40 seconds.","Face-to-face at the counter|Trust starts where you can see someone’s face.","Founder|“The second reason is older than crypto.”","Archive: market, square, counter|Money has always moved between people — markets, squares, counters.","Founder|“The third is about you.”","Door opens|When something’s unclear, you can walk in. That’s why we’re here.","End card|NEXT MOVE IS PLEX."],
+41:["Buyer with a photo of apartment keys|“I get the keys at 14:00. My funds are still in USDT.”","Calm buyer|Why this day was calm — though it might not have been.","One week earlier, consultation|A week before: amount, currency, date, documents.","Text overlay|“Everything depended on one document.”","Operator lists the documents|Verification, Proof of Funds if required, settlement document.","Text overlay: 14:00, notary|14:00. At the notary.","Signature, keys, sea-view balcony|Signed. Keys. A balcony over the sea.","End card|Buying property? Plan the exchange before the deal."],
+42:["Car at a dealer, seller on the phone|“The seller wants cash. Tomorrow morning.”","Evening street|One evening to be ready by morning.","Evening call to PLEX|Evening call: amount, time, branch.","Text overlay|“In the morning there was a surprise — a good one.”","Morning, operator already prepared|Everything agreed — the operator already knows why he’s here.","Text overlay|“And the seller asked one thing.”","“Where did you exchange?” — keys, engine|“PLEX.” Keys, engine start.","End card|Big purchase? Call us first."],
+43:["Founder at the office, calendar on the 25th|“A client paid in USDT. My team needs lari.”","Title|How a business handles crypto monthly — without chaos.","Calendar: payday; balance: USDT|The 25th: payday. Balance: USDT.","Accountant leans in|“The accountant had one question.”","Monthly rhythm with PLEX|Agreed volumes and one contact person, every month.","Text overlay|“Here’s the accountant’s question.”","Invoice and documents; team gets paid|“Documents?” Invoice and settlement documents are ready. The team gets paid.","End card|Business working with crypto? Book a meeting."],
+44:["Minimal room, soft light|“Large sum. Quiet room. No noise.”","Text overlay|What premium means when you never say the word.","Details: documents, water, one person|Prepared documents, water, one person.","Text overlay|“What you don’t see matters most.”","Unhurried meeting|Nobody rushes. Every detail is agreed in advance.","Text overlay|“One last detail.”","Client leaves, contact saved|One contact saved on his phone.","End card|Personal service — by appointment."],
+45:["Calendar close-up|“A big exchange isn’t planned on the last day.”","Title|Seven days, three steps, less stress.","D-7: consultation|D-7: amount, currency, branch.","Text overlay|“D-3 is where most mistakes happen.”","D-3: document check|D-3: document check. The mistake is leaving it for the last day.","Text overlay|“D-Day turns out to be the most boring day.”","D-Day: calm handover|Everything is ready. “Boring” is the best compliment.","End card|Big sum? Start at D-7."],
+46:["Realtor testimonial, building site behind|“The deal almost fell apart. The reason was crypto.”","Realtor|What a realtor learned.","Realtor explains buyer and seller|The buyer had USDT; the seller wanted lari.","Realtor|“We lost a week for one reason.”","Realtor|Nobody knew where and how to exchange properly.","Realtor|“Now I work differently.”","Developer and PLEX partnership shot|The buyer pays in USDT, we receive lari — documented.","End card|Developer or realtor? Partner with PLEX."],
+47:["Editorial VO, city and coin graphic|“Lari on the blockchain? What it means for you.”","Title|One new thing, three everyday effects.","Graphic|What it is: a digital token pegged to the lari.","VO|“The second effect gets the least attention.”","Graphics for effects 1 and 2|Lari with blockchain logic; new questions about regulation.","VO|“The third is about you.”","People at the counter|More choice — and more need for someone to explain.","End card|Follow — more coming."],
+48:["Split screen start|“One morning. Two paths. Who finishes first?”","Text overlay|Comparing experience, not numbers.","Left: queue and forms; right: message to PLEX|Left: a queue, forms, “come back tomorrow.” Right: a message to PLEX.","Both pause|“At one point, both stopped.”","Both do an ID check|ID check — the rule applies everywhere. The difference is how it’s explained.","Text overlay|“And the finish.”","Right drinks coffee, left still on forms|“Your day.”","End card|Your morning, your choice."],
+49:["Lifestyle opener|“USDT paid for this day.”","Text overlay|One day — and everything it made possible.","Coffee, a workshop, all paid in lari|Coffee, a workshop — all paid in lari.","Text overlay|“This morning, the money was still on the blockchain.”","Flashback: ten minutes at PLEX|Flashback: ten minutes at PLEX.","Text overlay|“And the evening — the main thing.”","Dinner with friends, she pays|Crypto, in real life.","End card|PLEX makes crypto useful in real life."],
+50:["Woman to camera, raised eyebrow|“Crypto is a guy thing.” Says who?","Three women intro|Three women, three salaries, one stereotype.","Designer, marketer, apartment buyer|A designer with a Berlin client, a marketer at a Dubai startup, an apartment buyer.","Text overlay|“All three had the same first experience.”","Condescending tone vs equal talk at PLEX|Elsewhere: “Let me explain, sweetie.” At PLEX: an equal conversation.","Text overlay|“Now they explain it to their friends.”","Confident talk: network, final amount, KYC|Network, final amount, KYC — with confidence. “Now it’s our thing.”","End card|Tag a woman who gets paid in crypto."]
+};
+const TITLE_EN=["Rent Day", "First Salary in Georgia", "Friday, 6 PM", "The Wedding Budget", "Grandma Gets Cash", "Dad vs Son", "First Freelance Fee", "A Nomad’s First 24 Hours", "Sea, Khinkali and One Small Problem", "Profit on Screen Isn’t Profit", "A City in Three Currencies", "One Street, Ten Languages", "Gamarjoba · Hello · Привет · नमस्ते", "What’s Your Next Move?", "Crypto in One Word", "Batumi: Winter vs Summer", "Coworking Diary", "10 Minutes to PLEX", "TRC20 or ERC20?", "USDT in 30 Seconds", "Best Rate ≠ Best Deal", "Why They Ask Where Your Money Comes From", "Pocket vs Safe", "3 Questions Before You Exchange", "A Crypto Dictionary for Grandma", "What Happens When You Hit Send", "Who’s on the Other Side of the Screen?", "A Rate Too Good to Be True", "Fake “Support” on Telegram", "Licence: Paper or Promise?", "Parking Lot at Night", "If Something Goes Wrong", "Red Flag / Green Flag", "A Day in the Life of an Operator", "The Weirdest Question", "How Money Gets Counted", "A New Hire’s First Week", "One Tip From the Team", "First Visit: Door to Counter", "Why a Physical Office for Digital Money", "Keys at 2 PM", "The Car Is Chosen", "Payroll on the 25th", "The Quiet Room", "D-7 → D-Day", "A Realtor’s Take", "Lari on the Blockchain", "The Pace Test", "A Day Paid by Crypto", "“Crypto Is a Guy Thing”"];
+const SEGINFO={
+1:['P2P Traders & Liquidity','Very High','Constant crypto/fiat liquidity; friction from informal P2P; reliable execution.','Reliable crypto ↔ fiat liquidity through a licensed VASP, with documented transactions.'],
+2:['Crypto Traders & Investors','High','Cash out profits or move fiat back into crypto efficiently.','Fast, secure crypto ↔ fiat exchange with competitive rates.'],
+3:['Expats, Remote Workers & Freelancers','High','Regularly convert crypto income into GEL/USD/EUR; want a trustworthy local service.','A simple, compliant way to turn crypto income into usable fiat in Georgia.'],
+4:['VIP / HNWI','Very High','Large transactions, discretion, liquidity, speed, premium support.','Dedicated service, personalized rates and priority execution.'],
+5:['Real Estate Buyers & Investors','Very High','Convert crypto into fiat for property; documentation and source-of-funds.','Compliant conversion of crypto capital for major purchases, with documentation.'],
+6:['Business / B2B','Very High','Corporate conversion, reporting, documentation, dedicated support.','Professional crypto ↔ fiat infrastructure with dedicated support and reporting.'],
+7:['Auto & High-Value Purchases','Medium–High','Quickly convert crypto into fiat for a specific transaction.','Fast and documented crypto-to-fiat conversion for major purchases.'],
+8:['New / First-Time Users','Growth','Trust, security, education and assistance.','A simple, guided and secure way to exchange crypto.'],
+9:['Tourists & Short-Term Visitors','Medium / seasonal','Convenient access to fiat while in Georgia.','Convenient crypto ↔ cash exchange while in Georgia.']
+};
+
+// PLEX Customer Segmentation (PDF): 9 segments with the document's own business-value rating
+const SEGS_OLD={1:['P2P ტრეიდერები და ლიკვიდობა','Very High'],2:['კრიპტოტრეიდერები და ინვესტორები','High'],3:['ექსპატები, რემოუთი, ფრილანსერები','High'],4:['VIP / HNWI','Very High'],5:['უძრავი ქონების მყიდველები','Very High'],6:['ბიზნესი / B2B','Very High'],7:['ავტო და დიდი შენაძენი','Medium–High'],8:['დამწყები მომხმარებლები','Growth'],9:['ტურისტები','Medium / seasonal']};
+const SEGMAP=[[3],[3],[3],[7],[8],[8],[3,8],[3,9],[9],[2],[3,5],[3],[3,9],[8],[8],[9,5],[3],[8,9],[8],[8],[1,2,7],[8,4],[8],[8,2],[8],[8],[1],[1,8],[2,8],[4,6],[1],[2,8],[1,8],[8],[8],[4],[8],[2,8],[8],[4,8],[5,7],[7],[6],[4],[4,5,7],[5,6],[2,6],[3,6],[3],[3]];
+const DATA=RAW.map((r,i)=>({id:i+1,c:r[0],t:r[1],s:r[2],f:r[3],v:r[4],b:r.slice(5,13),flag:r[13],seg:SEGMAP[i]}));
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+let status={};try{localStorage.removeItem('plexReelStatus')}catch(e){}
+const saveStatus=()=>{try{localStorage.setItem('plexReelStatus',JSON.stringify(status))}catch(e){}};
+const ST={draft:'Draft',review:'In review',ready:'Ready for brief'};
+let rdb=null;const RV={};const rq={};
+const stOf=id=>(RV[id]&&RV[id].status)||status[id]||'draft';/* status[] holds only this visit's changes when the shared store is unavailable */
+const bv=(id,i,k)=>{const o=RV[id]&&RV[id].b&&RV[id].b[i];if(o&&typeof o[k]==='string')return o[k];const p=EN[id][i].split('|');return k==='shot'?p[0]:p[1]};
+function saveReel(id,patch){const cur0=RV[id]?JSON.parse(JSON.stringify(RV[id])):{};
+  if(patch.status)cur0.status=patch.status;if(patch.b){cur0.b=cur0.b||{};for(const i in patch.b)cur0.b[i]=Object.assign(cur0.b[i]||{},patch.b[i])}
+  RV[id]=cur0;if(!rdb){if(patch.status){status[id]=patch.status;saveStatus()}return}
+  const el=document.getElementById('rvSave');if(el)el.textContent='Saving…';
+  rq[id]=(rq[id]||Promise.resolve()).then(()=>rdb.doc('reels/r'+id).set(RV[id])).then(()=>{const e2=document.getElementById('rvSave');if(e2)e2.textContent='Saved ✓'},e=>{if(e&&e.code==='invalid_argument'){setReadOnly();if(cur)drawDrawer()}else toast('შენახვა ვერ მოხერხდა')})}
+(async()=>{try{rdb=window.claude?await window.claude.use('db'):null}catch(e){rdb=null}if(!rdb)return;
+  rdb.collection('reels').onSnapshot(sn=>{sn.docs.forEach(d=>{RV[+d.id.slice(1)]=JSON.parse(JSON.stringify(d.data()))});render();
+    if(cur){const a=document.activeElement;if(!(a&&a.closest&&a.closest('#drawer textarea')))drawDrawer()}},()=>{})})();
+let state={cat:'',q:'',star:false,st:'',seg:0};
+
+function octSVG(size,withLabels,active){
+  const cx=size/2,cy=size/2,R=size*(withLabels?.2:.3),Rn=size*(withLabels?.36:.44);
+  const pts=[];for(let i=0;i<8;i++){const a=(-90+22.5+i*45)*Math.PI/180;pts.push([cx+R*Math.cos(a),cy+R*Math.sin(a)])}
+  let s=`<polygon points="${pts.map(p=>p.join(',')).join(' ')}" fill="#181916" stroke="#BFFF40" stroke-opacity=".35" stroke-width="1.5"/>`;
+  s+=`<polygon points="${pts.map(p=>[(p[0]-cx)*1.12+cx,(p[1]-cy)*1.12+cy].join(',')).join(' ')}" fill="none" stroke="var(--line)" stroke-width="1.5"/>`;
+  BEATS.forEach((b,i)=>{
+    const a=(-90+i*45)*Math.PI/180,x=cx+Rn*Math.cos(a),y=cy+Rn*Math.sin(a),x0=cx+R*1.12*Math.cos(a),y0=cy+R*1.12*Math.sin(a);
+    const col=b.k==='hook'||b.k==='cta'?'var(--lime-ink)':b.k==='loop'?'var(--loop)':'var(--muted)';
+    s+=`<line x1="${x0}" y1="${y0}" x2="${x}" y2="${y}" stroke="var(--line)" stroke-width="1.5"/>`;
+    if(withLabels){
+      const lx=cx+(Rn+14)*Math.cos(a),ly=cy+(Rn+14)*Math.sin(a);
+      const anchor=Math.abs(Math.cos(a))<.2?'middle':(Math.cos(a)>0?'start':'end');
+      const dy=Math.sin(a)<-.5?-4:Math.sin(a)>.5?12:4;
+      s+=`<g class="oct-node${active===i?' on':''}" data-i="${i}" tabindex="0" role="button" aria-label="${b.en}"><circle cx="${x}" cy="${y}" r="${active===i?7:5}" style="fill:${active===i?'':col}"/><text x="${lx}" y="${ly+dy}" text-anchor="${anchor}">${b.en}</text></g>`;
+    } else s+=`<circle cx="${x}" cy="${y}" r="4" fill="${col}"/>`;
+  });
+  s+=withLabels?`<text x="${cx}" y="${cy-4}" text-anchor="middle" fill="#BFFF40" font-size="11" font-weight="600" letter-spacing="1" font-family="var(--body)">NEXT MOVE</text><text x="${cx}" y="${cy+12}" text-anchor="middle" fill="#BFFF40" font-size="16" font-weight="900" font-family="var(--display)">IS PLEX</text>`:'';
+  return s;
+}
+$('#octMini').innerHTML=octSVG(120,false);
+$('#flow').innerHTML=BEATS.map(b=>`<div class="fstep k-${b.k}"><div class="t">${b.t}</div><div class="n">${b.en}</div><div class="d">${b.d}</div></div>`).join('');
+
+let visible=[];
+function mini(){return `<div class="beats-mini" aria-hidden="true">${BEATS.map(b=>`<i class="${b.k==='hook'?'h':b.k==='cta'?'c':b.k==='loop'?'l':'v'}" style="flex:${b.w}"></i>`).join('')}</div>`}
+let curSeg=3;try{curSeg=+localStorage.getItem('plexSeg')||3}catch(e){}
+function segTopics(k){return DATA.filter(d=>d.seg.includes(k))}
+$('#segs9').innerHTML=Object.entries(SEGINFO).map(([k,s])=>`<button class="sg" data-seg="${k}" aria-pressed="false"><span class="no">${k}</span><span class="nm">${s[0]}</span><span class="mt">${s[1]} · ${segTopics(+k).length} topics</span></button>`).join('');
+$('#segs9').addEventListener('click',e=>{const b=e.target.closest('.sg');if(!b)return;curSeg=+b.dataset.seg;try{localStorage.setItem('plexSeg',curSeg)}catch(err){}render()});
+function render(){
+  document.querySelectorAll('.sg').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.seg===curSeg));
+  const si=SEGINFO[curSeg];visible=segTopics(curSeg);
+  $('#segBrief').innerHTML=`<div><small>Segment ${curSeg}</small><div class="big">${si[0]}</div><div style="color:var(--muted);font-size:13px;margin-top:4px">Business value: ${si[1]}</div></div>
+    <div><small>Main need</small>${si[2]}</div><div><small>PLEX value</small>${si[3]}</div>`;
+  $('#topicsSub').textContent=`${visible.length} reels for Segment ${curSeg} · ${si[0]}`;
+  $('#grid').innerHTML=visible.map(d=>`<button class="card" data-id="${d.id}">
+    <div class="meta"><span class="cat"><span class="dot" style="background:${CATS[d.c].c}"></span>${esc(d.f)}</span><span class="num">#${String(d.id).padStart(2,'0')}</span></div>
+    <h3>${esc(TITLE_EN[d.id-1])}</h3>
+    <p class="hook">${esc(bv(d.id,0,'script'))}</p>
+    ${mini()}
+    <div class="foot"><span class="pill val">${d.v}</span>${d.flag?'<span class="pill warn">To verify</span>':''}<span class="st s-${stOf(d.id)}"><span class="dot"></span>${ST[stOf(d.id)]}</span></div>
+  </button>`).join('');
+  const cnt={draft:0,review:0,ready:0};DATA.forEach(d=>cnt[stOf(d.id)]++);
+  $('#stats').innerHTML=`<div><b>${visible.length}</b>topics</div><div><b>${cnt.review}</b>in review</div><div><b>${cnt.ready}</b>ready</div>`;
+}
+$('#grid').addEventListener('click',e=>{const c=e.target.closest('.card');if(c)open(+c.dataset.id)});
+
+let cur=null,activeBeat=0,lastFocus=null,lang='en';
+function open(id){
+  cur=DATA.find(d=>d.id===id);activeBeat=0;lastFocus=document.activeElement;
+  drawDrawer();$('#scrim').hidden=false;$('#drawer').hidden=false;document.body.style.overflow='hidden';
+  $('#drawer .close').focus();
+}
+function close(){$('#scrim').hidden=true;$('#drawer').hidden=true;document.body.style.overflow='';cur=null;lastFocus&&lastFocus.focus&&lastFocus.focus()}
+function drawDrawer(){
+  const d=cur,idx=visible.findIndex(x=>x.id===d.id);
+  $('#drawer').innerHTML=`<div class="dh">
+    <div class="dh-row"><span class="cat" style="font-size:13px;color:var(--muted)">Segment ${curSeg} · ${SEGINFO[curSeg][0]} · #${String(d.id).padStart(2,'0')}</span>
+      <span style="display:flex;gap:6px"><button class="iconbtn" data-nav="-1" ${idx<=0?'disabled':''} aria-label="წინა">←</button><button class="iconbtn" data-nav="1" ${idx<0||idx>=visible.length-1?'disabled':''} aria-label="შემდეგი">→</button><button class="iconbtn close" aria-label="დახურვა">✕</button></span></div>
+    <h2 id="dTitle">${esc(TITLE_EN[d.id-1])}</h2><div style="color:var(--muted);font-size:13px;margin-top:-4px">${esc(d.t)}</div>
+    <div class="facts"><div><small>Hero</small>${esc(d.s)}</div><div><small>Format</small>${esc(d.f)}</div><div><small>Brand value</small>${d.v}</div></div>
+    <div class="segs">${d.seg.map(k=>`<span class="pill">Segment ${k}: ${SEGINFO[k][0]}</span>`).join('')}</div>
+  </div>
+  <div class="db">
+    ${d.flag?`<div class="note">გადაღებამდე დასაზუსტებელია: ${esc(d.flag)}</div>`:''}
+    <div class="octwrap"><svg viewBox="0 0 340 300" id="octBig" aria-label="ფორმულის ნავიგაცია">${octSVG(300,true,activeBeat).replace(/^/, '')}</svg></div>
+    <div class="sheet-bar"><h3>Formula · 27 sec</h3><span class="tl-save" id="rvSave"></span></div>
+    <div class="beats" id="beats">${BEATS.map((b,i)=>`<div class="beat k-${b.k}${i===activeBeat?' on':''}" data-i="${i}" id="beat${i}">
+      <div><div class="lab">${b.en}</div><div class="tc">${b.t}</div></div>
+      <div class="bf"><label><span>Shot</span><textarea data-i="${i}" data-k="shot" rows="1" ${canWrite?'':'readonly'}>${esc(bv(d.id,i,'shot'))}</textarea></label>
+      <label><span>Script</span><textarea data-i="${i}" data-k="script" rows="1" ${canWrite?'':'readonly'}>${esc(bv(d.id,i,'script'))}</textarea></label>
+      ${b.k==='cta'?'<b class="sig">🟢 NEXT MOVE IS PLEX.</b>':''}</div></div>`).join('')}</div>
+    <div class="statusrow"><b style="color:var(--ink)">Status:</b>
+      ${Object.entries(ST).map(([k,n])=>`<button class="chip" data-st="${k}" aria-pressed="${stOf(d.id)===k}">${n}</button>`).join('')}
+    </div>
+    <div class="guard"><b>ბრენდის ფილტრი გადაღებამდე</b>
+      <ul><li>კრიპტო მექანიზმია, ისტორია მომხმარებლის ცხოვრებაა.</li>
+      <li>PLEX-ის მოქმედება კადრში ჩანს (Value 2).</li>
+      <li>ფინალში ადამიანი თავის საქმეს აგრძელებს.</li>
+      <li>არა: მოფრენილი ბიტკოინები, ჰუდი, ნეონი, ლამბორჯინი, ჩარტები, ჟარგონი, მოგების დაპირება.</li></ul></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="iconbtn primary" id="copy">Copy shot sheet</button></div>
+  </div>`;
+  // center the 300-wide octagon in 340 viewBox
+  const g=$('#octBig');g.innerHTML=`<g transform="translate(20,0)">${g.innerHTML}</g>`;
+}
+function setBeat(i,scroll){activeBeat=i;document.querySelectorAll('#beats .beat').forEach((el,j)=>el.classList.toggle('on',j===i));
+  $('#octBig').innerHTML=`<g transform="translate(20,0)">${octSVG(300,true,i)}</g>`;
+  if(scroll)$('#beat'+i).scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'nearest'})}
+$('#drawer').addEventListener('click',e=>{
+  if(e.target.closest('.close'))return close();
+  const nav=e.target.closest('[data-nav]');if(nav){const idx=visible.findIndex(x=>x.id===cur.id)+ +nav.dataset.nav;if(visible[idx]){cur=visible[idx];activeBeat=0;drawDrawer()}return}
+  const node=e.target.closest('.oct-node');if(node)return setBeat(+node.dataset.i,true);
+  const beat=e.target.closest('.beat');if(beat&&!e.target.closest('textarea'))return setBeat(+beat.dataset.i,false);
+  const st=e.target.closest('[data-st]');if(st){saveReel(cur.id,{status:st.dataset.st});document.querySelectorAll('[data-st]').forEach(x=>x.setAttribute('aria-pressed',x===st));render();return}
+  if(e.target.closest('#copy'))copyScript();
+});
+$('#drawer').addEventListener('keydown',e=>{const n=e.target.closest('.oct-node');if(n&&(e.key==='Enter'||e.key===' ')){e.preventDefault();setBeat(+n.dataset.i,true)}});
+const rdeb={};
+$('#drawer').addEventListener('input',e=>{const t=e.target;if(t.tagName!=='TEXTAREA'||!cur)return;const id=cur.id,i=t.dataset.i,k=t.dataset.k,key=id+'-'+i+k;
+  const sv=document.getElementById('rvSave');if(sv)sv.textContent='…';clearTimeout(rdeb[key]);rdeb[key]=setTimeout(()=>saveReel(id,{b:{[i]:{[k]:t.value}}}),700)});
+$('#drawer').addEventListener('focusin',e=>{const t=e.target;if(t.tagName==='TEXTAREA'&&t.dataset.i!=null&&+t.dataset.i!==activeBeat)setBeat(+t.dataset.i,false)});
+$('#scrim').addEventListener('click',close);
+document.addEventListener('keydown',e=>{if(!cur)return;if(e.key==='Escape')close();
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){if(e.target.tagName==='INPUT')return;e.preventDefault();setBeat((activeBeat+(e.key==='ArrowDown'?1:7))%8,true)}});
+function copyScript(){
+  const d=cur;const txt=`PLEX REEL #${d.id} — ${TITLE_EN[d.id-1]}\nSegment: ${d.seg.map(k=>SEGINFO[k][0]).join(', ')}\nFormat: ${d.f} · Brand value: ${d.v}\n\n`+
+    BEATS.map((b,i)=>{const shot=bv(d.id,i,'shot'),en=bv(d.id,i,'script');return `[${b.t}] ${b.en.toUpperCase()}\nShot: ${shot}\nScript: ${en}${b.k==='cta'?'\n🟢 NEXT MOVE IS PLEX.':''}`}).join('\n\n')+(d.flag?`\n\nCheck before shooting: ${d.flag}`:'');
+  const done=()=>toast('სცენარი დაკოპირდა');
+  const fallback=()=>{const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');done()}catch(e){toast('მონიშნე და დააკოპირე ხელით')}ta.remove()};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(done,fallback);else fallback();
+}
+let tt;function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,1800)}
+render();
+
+/* ---------- Quick Timeline (shared db) ---------- */
+const tlBody=$('#tlBody');let tdb=null,tRows=[],canWrite=true;const tq={};
+const URLRE=/https?:\/\/[^\s)]+/i;
+function linkCell(f,v,ro){v=v||'';const m=v.match(URLRE);
+  if(!v)return `<input type="text" data-f="${f}" value="${esc(v)}" placeholder="ჩასვი ლინკი" ${ro}>`;
+  let chip;if(m){let host='';try{host=new URL(m[0]).hostname.replace(/^www\./,'')}catch(e){host='link'}const extra=v.replace(m[0],'').replace(/[()\s.]+/g,' ').trim();
+    chip=`<a href="${esc(m[0])}" target="_blank" rel="noopener" title="${esc(m[0])}">↗ ${esc(host)}${extra?' · '+esc(extra):''}</a>`}
+  else chip=`<span class="file" title="${esc(v)}">${esc(v)}</span>`;
+  return `<div class="lk">${chip}${ro?'':`<button data-edit="${f}" aria-label="Edit link">✎</button>`}</div>`}
+const today=()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())};
+const pd=s=>{if(!s)return null;const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)};
+function tStatus(r){if(r.done)return['done','Done'];const t=today(),sh=pd(r.shoot),de=pd(r.delivery);
+  if(!sh&&!de)return['','No dates'];if(de&&de<t)return['late','Overdue'];if(sh&&sh<=t)return['prod','In production'];
+  if(sh&&(sh-t)/864e5<=3)return['soon','Shoot soon'];return['','Scheduled']}
+const labOpts=v=>`<option value="0">—</option>`+DATA.map(d=>`<option value="${d.id}" ${+v===d.id?'selected':''}>#${d.id} ${esc(d.t)}</option>`).join('');
+function rowHTML(r,i){const ro=canWrite?'':'disabled';const [sc,sl]=tStatus(r);
+  return `<td class="n">${i+1}</td>
+  <td class="c-content"><input type="text" data-f="content" value="${esc(r.content||'')}" ${ro} aria-label="Content"></td>
+  <td class="c-lab"><div style="display:flex;align-items:center"><select data-f="lab" ${ro} aria-label="Lab topic">${labOpts(r.lab)}</select>${+r.lab?`<button class="labgo" data-lab="${r.lab}" title="Open in Reels Lab">↗</button>`:''}</div></td>
+  <td class="c-link">${linkCell('brief',r.brief,ro)}</td>
+  <td class="c-date"><input type="date" data-f="shoot" value="${esc(r.shoot||'')}" ${ro} aria-label="Shoot"></td>
+  <td class="c-date"><input type="date" data-f="delivery" value="${esc(r.delivery||'')}" ${ro} aria-label="Delivery"></td>
+  <td><span class="stp ${sc}">${sl}</span></td>
+  <td><input type="checkbox" data-f="done" ${r.done?'checked':''} ${ro} aria-label="Done"></td>
+  <td class="c-link">${linkCell('drive',r.drive,ro)}</td>
+  <td><textarea data-f="comment" rows="1" ${ro} aria-label="Comment" placeholder="კომენტარი…">${esc(r.comment||'')}</textarea></td>
+  <td>${ro?'':`<button class="del" data-del aria-label="Delete row">✕</button>`}</td>`}
+function renderTL(){
+  if(!tRows.length){tlBody.innerHTML=`<tr><td colspan="11" class="tl-empty">${tdb?'ჯერ ჩანაწერი არ არის. დააჭირე „+ Add row“.':'Shared timeline ამ ხედში მიუწვდომელია.'}</td></tr>`}
+  else{const focusTr=document.activeElement&&document.activeElement.closest&&document.activeElement.closest('#tlBody tr');
+    const existing={};tlBody.querySelectorAll('tr[data-id]').forEach(tr=>existing[tr.dataset.id]=tr);
+    const frag=document.createDocumentFragment();
+    tRows.forEach((r,i)=>{let tr=existing[r.id];
+      if(tr&&tr===focusTr){tr.querySelector('.n').textContent=i+1}
+      else{tr=document.createElement('tr');tr.dataset.id=r.id;tr.innerHTML=rowHTML(r,i)}
+      tr.classList.toggle('is-done',!!r.done);frag.appendChild(tr)});
+    tlBody.innerHTML='';tlBody.appendChild(frag)}
+  const c={total:tRows.length,done:0,late:0,soon:0};tRows.forEach(r=>{const s=tStatus(r)[0];if(s==='done')c.done++;if(s==='late')c.late++;if(s==='soon'||s==='prod')c.soon++});
+  $('#tlSum').innerHTML=`<span class="pill">${c.total} reels</span><span class="pill" style="background:var(--lime);color:var(--on-lime)">${c.done} done</span><span class="pill" style="background:var(--loop-bg);color:var(--loop)">${c.soon} active</span>${c.late?`<span class="pill warn">${c.late} overdue</span>`:''}`}
+function setSave(t){$('#tlSave').textContent=t}
+const SRV={};
+function writeTL(id,patch){if(!tdb)return;setSave('Saving…');
+  const base=Object.assign({},SRV[id]||{},patch);delete base.id;
+  tq[id]=(tq[id]||Promise.resolve()).then(()=>tdb.doc('timeline/'+id).set(base)).then(()=>{SRV[id]=base;setSave('Saved ✓')},e=>{setSave('');
+    const r=tRows.find(x=>x.id===id);if(r&&SRV[id])Object.assign(r,SRV[id]);renderTL();
+    if(e&&e.code==='invalid_argument')setReadOnly();else toast('შენახვა ვერ მოხერხდა, სცადე ხელახლა')});}
+function setReadOnly(){if(!canWrite)return;canWrite=false;$('#tlAdd').hidden=true;$('#tlTitle').readOnly=true;
+  const n=$('#tlNote');n.className='note';n.textContent='ამ ბრაუზერში გვერდი წაკითხვის რეჟიმშია: შენ ამ ბმულით შემოხვედი ანგარიშის გარეშე ან სხვა ანგარიშით. რედაქტირებისთვის გახსენი claude.ai-ზე შენი ანგარიშით ან მფლობელმა მოგცეს Contributor წვდომა.';
+  const rows=tRows.map(r=>Object.assign(r,SRV[r.id]||{}));renderTL();tlBody.querySelectorAll('tr[data-id]').forEach((tr,i)=>{tr.innerHTML=rowHTML(tRows[i],i)});toast('რედაქტირების უფლება არ გაქვს')}
+const deb={};
+tlBody.addEventListener('input',e=>{const el=e.target,f=el.dataset.f,tr=el.closest('tr');if(!f||!tr)return;
+  if(el.type==='text'||el.tagName==='TEXTAREA'){const k=tr.dataset.id+f;clearTimeout(deb[k]);setSave('…');deb[k]=setTimeout(()=>writeTL(tr.dataset.id,{[f]:el.value}),700)}});
+tlBody.addEventListener('change',e=>{const el=e.target,f=el.dataset.f,tr=el.closest('tr');if(!f||!tr)return;const id=tr.dataset.id;
+  const k=id+f;clearTimeout(deb[k]);let v=el.type==='checkbox'?el.checked:f==='lab'?+el.value:el.value;
+  const r=tRows.find(x=>x.id===id);if(r)r[f]=v;writeTL(id,{[f]:v});
+  if(f==='lab'||f==='done'||f==='shoot'||f==='delivery'||f==='brief'||f==='drive'){tr.innerHTML=rowHTML(r,tRows.indexOf(r));tr.classList.toggle('is-done',!!r.done);renderTL()}});
+tlBody.addEventListener('focusout',e=>{const el=e.target;if((el.dataset.f==='brief'||el.dataset.f==='drive')&&el.value){setTimeout(()=>{const tr=el.closest('tr');if(tr&&!tr.contains(document.activeElement)){const r=tRows.find(x=>x.id===tr.dataset.id);if(r){r[el.dataset.f]=el.value;tr.innerHTML=rowHTML(r,tRows.indexOf(r))}}},0)}});
+tlBody.addEventListener('click',async e=>{
+  const ed=e.target.closest('[data-edit]');if(ed){const td=ed.closest('td'),f=ed.dataset.edit,r=tRows.find(x=>x.id===ed.closest('tr').dataset.id);
+    td.innerHTML=`<input type="text" data-f="${f}" value="${esc(r[f]||'')}" placeholder="ჩასვი ლინკი">`;const i=td.querySelector('input');i.focus();i.select();return}
+  const lg=e.target.closest('[data-lab]');if(lg){showTab('reels');open(+lg.dataset.lab);return}
+  const del=e.target.closest('[data-del]');if(del){if(!del.classList.contains('arm')){del.classList.add('arm');del.textContent='Delete?';setTimeout(()=>{del.classList.remove('arm');del.textContent='✕'},3000);return}
+    const id=del.closest('tr').dataset.id;const snap=Object.assign({},SRV[id]||{});try{setSave('Saving…');await tdb.doc('timeline/'+id).delete();setSave('Saved ✓');undoStack.push({id,data:snap});updUndo();toast('მწკრივი წაიშალა — Undo აბრუნებს')}catch(err){if(err&&err.code==='invalid_argument')setReadOnly();else toast('წაშლა ვერ მოხერხდა')}}});
+const undoStack=[];function updUndo(){const b=$('#tlUndo');b.hidden=!undoStack.length;b.textContent=undoStack.length>1?`↶ Undo (${undoStack.length})`:'↶ Undo delete'}
+$('#tlUndo').addEventListener('click',async()=>{const u=undoStack.pop();updUndo();if(!u)return;setSave('Saving…');try{await tdb.doc('timeline/'+u.id).set(u.data);SRV[u.id]=u.data;setSave('Saved ✓');toast('მწკრივი დაბრუნდა')}catch(e){undoStack.push(u);updUndo();toast('აღდგენა ვერ მოხერხდა')}});
+$('#tlAdd').addEventListener('click',async()=>{if(!tdb){toast('Timeline მიუწვდომელია');return}if(!canWrite){toast('რედაქტირების უფლება არ გაქვს');return}
+  const n=Math.max(tRows.length,...tRows.map(r=>+r.n||0))+1;setSave('Saving…');
+  try{const ref=tdb.collection('timeline').doc();SRV[ref.id]={n,content:'New reel',lab:0,brief:'',shoot:'',delivery:'',done:false,drive:'',comment:''};await ref.set({n,content:'New reel',lab:0,brief:'',shoot:'',delivery:'',done:false,drive:'',comment:''});setSave('Saved ✓');
+    setTimeout(()=>{const i=tlBody.querySelector(`tr[data-id="${ref.id}"] input[data-f=content]`);if(i){i.focus();i.select()}},300)}
+  catch(err){toast(err&&err.code==='quota_exceeded'?'ჩანაწერების ლიმიტი ამოიწურა':'მწკრივი ვერ დაემატა')}});
+let titleT;$('#tlTitle').addEventListener('input',e=>{if(!tdb||!canWrite)return;clearTimeout(titleT);titleT=setTimeout(()=>{setSave('Saving…');tdb.doc('settings/timeline').set({title:e.target.value}).then(()=>setSave('Saved ✓'),()=>setSave(''))},700)});
+(async()=>{try{tdb=window.claude?await window.claude.use('db'):null}catch(e){tdb=null}
+  if(!tdb){renderTL();$('#tlAdd').hidden=true;$('#tlTitle').readOnly=true;return}
+  try{const u=await window.claude.use('user');if(u){const c=await u.can('data.write');if(c===false){canWrite=true;setReadOnly()}}}catch(e){}
+  tdb.collection('timeline').orderBy('n').onSnapshot(s=>{s.docs.forEach(d=>{SRV[d.id]=JSON.parse(JSON.stringify(d.data()))});tRows=s.docs.map(d=>Object.assign({id:d.id},JSON.parse(JSON.stringify(d.data()))));renderTL()},()=>{toast('Timeline-ის განახლება შეწყდა, გადატვირთე გვერდი')});
+  tdb.doc('settings/timeline').onSnapshot(s=>{const t=$('#tlTitle');if(s.exists&&document.activeElement!==t)t.value=s.data().title||t.value},()=>{});
+})();
+
+const DOCS=[
+ {file:'docs/PLEX_Brand_Guideline.pdf',name:'PLEX_Brand_Guideline.pdf',title:'Brand Guideline',meta:'29 გვ · 2.3 MB · ნოემბერი 2025',
+  about:'ვიზუალური იდენტობა: ლოგო, ფერები, შრიფტები, პატერნები.',
+  pts:['ფერები: Plex Green #BFFF40, #40FF9E, #408FFF, #FF6464, #181916, #EAEAEA','შრიფტები: Titillium (სათაურები), Inter (ტექსტი), ქართული — გეომეტრიული, bold','მუქი ფონი, მწვანე ნათება, grid-პატერნი, „Obsidian glass“ კონტეინერები']},
+ {file:'docs/PLEX_Pitch_Deck.pdf',name:'PLEX_Pitch_Deck.pdf',title:'Pitch Deck',meta:'11 გვ · 1.2 MB · B2B',
+  about:'PLEX როგორც ბიზნესპარტნიორი: ლიცენზია, compliance, პარტნიორობის მოდელები.',
+  pts:['VASP ლიცენზია — საქართველოს ეროვნული ბანკი','Sumsub ვერიფიკაცია, AMLBot, Proof of Funds','ოფლაინ და დისტანციური კრიპტო-გადახდის მოდელები; ინვოისი და დოკუმენტაცია']},
+ {file:'docs/PLEX_Customer_Segmentation_Behavior.pdf',name:'PLEX_Customer_Segmentation_Behavior.pdf',title:'Customer Segmentation & Behavior',meta:'15 გვ · 0.2 MB',
+  about:'9 სეგმენტი, ბრენდის ქცევა და ვიდეოს ფორმულა.',
+  pts:['9 სეგმენტი Business Value შეფასებით','„Crypto is the mechanism. The customer’s life is the story.“','რას ვერიდებით: ბიტკოინები, ნეონი, ლამბორჯინი, ჟარგონი']}
+];
+const pdfIcon='<svg width="28" height="34" viewBox="0 0 28 34" aria-hidden="true"><path d="M2 2h16l8 8v22H2z" fill="none" stroke="var(--lime-ink)" stroke-width="2"/><path d="M18 2v8h8" fill="none" stroke="var(--lime-ink)" stroke-width="2"/><text x="14" y="26" text-anchor="middle" font-size="7" font-weight="700" fill="var(--lime-ink)" font-family="var(--mono)">PDF</text></svg>';
+$('#docs').innerHTML=DOCS.map((d,i)=>`<article class="doc"><div class="kind">${pdfIcon}<span>${d.meta}</span></div>
+  <h3>${d.title}</h3><p>${d.about}</p><ul>${d.pts.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
+  <div class="acts"><button class="iconbtn primary" data-view="${i}">Open</button><button class="iconbtn" data-dl="${i}">Download</button></div></article>`).join('');
+async function getDl(){try{return window.claude?await window.claude.use('downloads'):null}catch(e){return null}}
+async function downloadDoc(i,btn){const d=DOCS[i];const api=await getDl();
+  if(!api){toast('გადმოწერა ამ ხედში მიუწვდომელია — გახსენი და წაიკითხე აქვე');openPdf(i);return}
+  const old=btn?btn.textContent:'';if(btn){btn.disabled=true;btn.textContent='Preparing…'}
+  try{const r=await fetch(d.file);if(!r.ok)throw 0;await api.save({filename:d.name,data:await r.blob()});toast('ფაილი შენახულია')}
+  catch(err){if(!(err&&err.code==='declined'))toast('ვერ ჩამოიტვირთა, სცადე თავიდან')}
+  finally{if(btn){btn.disabled=false;btn.textContent=old}}}
+let pdfCur=-1,pdfTask=0;
+async function openPdf(i){const d=DOCS[i];pdfCur=i;const task=++pdfTask;
+  $('#pvTitle').textContent=d.title;$('#pvMeta').textContent=d.meta;$('#pvPages').innerHTML='<p class="pv-msg">იტვირთება…</p>';
+  $('#pv').hidden=false;document.body.style.overflow='hidden';$('#pvClose').focus();
+  try{if(!window.pdfjsLib)throw new Error('lib');
+    const buf=await (await fetch(d.file)).arrayBuffer();if(task!==pdfTask)return;
+    const pdf=await pdfjsLib.getDocument({data:buf}).promise;if(task!==pdfTask)return;
+    $('#pvPages').innerHTML='';const W=Math.min($('#pvPages').clientWidth-32,1100);
+    for(let n=1;n<=pdf.numPages;n++){if(task!==pdfTask)return;const page=await pdf.getPage(n);
+      const v1=page.getViewport({scale:1});const scale=W/v1.width;const dpr=Math.min(window.devicePixelRatio||1,2);const vp=page.getViewport({scale:scale*dpr});
+      const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;c.style.width=(vp.width/dpr)+'px';c.style.height=(vp.height/dpr)+'px';c.setAttribute('aria-label','Page '+n);
+      const wrap=document.createElement('div');wrap.className='pv-page';wrap.appendChild(c);const lab=document.createElement('span');lab.textContent=n+' / '+pdf.numPages;wrap.appendChild(lab);
+      $('#pvPages').appendChild(wrap);await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise}
+  }catch(e){if(task===pdfTask)$('#pvPages').innerHTML='<p class="pv-msg">PDF ვერ გაიხსნა. სცადე „Download“.</p>'}}
+function closePdf(){pdfTask++;$('#pv').hidden=true;$('#pvPages').innerHTML='';if(!cur)document.body.style.overflow=''}
+$('#docs').addEventListener('click',e=>{const v=e.target.closest('[data-view]');if(v)return openPdf(+v.dataset.view);const b=e.target.closest('[data-dl]');if(b)downloadDoc(+b.dataset.dl,b)});
+$('#pvClose').addEventListener('click',closePdf);
+$('#pvDl').addEventListener('click',e=>downloadDoc(pdfCur,e.currentTarget));
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#pv').hidden)closePdf()});
+function showTab(t){[['reels','viewReels','tabReels'],['time','viewTime','tabTime'],['docs','viewDocs','tabDocs']].forEach(([k,v,b])=>{$('#'+v).hidden=k!==t;$('#'+b).setAttribute('aria-selected',k===t)});try{localStorage.setItem('plexTab',t)}catch(e){}}
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
+{const h=location.hash.slice(1);if(['reels','time','docs'].includes(h))showTab(h);else{try{const t=localStorage.getItem('plexTab');if(t==='time'||t==='docs')showTab(t)}catch(e){}}}
+</script>
+
+</body>
+</html>
