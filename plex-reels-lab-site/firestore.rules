@@ -1,6 +1,32 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} { allow read, write: if true; }
+    function isOwner() {
+      return request.auth != null
+        && request.auth.token.email == 'vazha.ungiadze1@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+    // Quick Timeline: everyone can read and edit, only with the expected fields.
+    match /timeline/{id} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasOnly(
+          ['n','content','lab','brief','shoot','delivery','done','drive','comment'])
+        && (!('comment' in request.resource.data) || request.resource.data.comment.size() < 5000)
+        && (!('content' in request.resource.data) || request.resource.data.content.size() < 300);
+      allow delete: if true;
+    }
+    match /settings/timeline {
+      allow read: if true;
+      allow write: if request.resource.data.keys().hasOnly(['title'])
+        && request.resource.data.title.size() < 120;
+    }
+    match /settings/_seeded { allow read: if true; allow create: if true; }
+    // Reel scripts and statuses: everyone reads, only the owner edits.
+    match /reels/{id} {
+      allow read: if true;
+      allow write: if isOwner();
+    }
+    // Everything else is closed.
+    match /{document=**} { allow read, write: if false; }
   }
 }
