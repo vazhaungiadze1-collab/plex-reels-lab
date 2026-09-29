@@ -522,15 +522,15 @@ function render(){
   const cnt={draft:0,review:0,ready:0};DATA.forEach(d=>cnt[stOf(d.id)]++);
   $('#stats').innerHTML=`<div><b>${visible.length}</b>topics</div><div><b>${cnt.review}</b>in review</div><div><b>${cnt.ready}</b>ready</div>`;
 }
-$('#grid').addEventListener('click',e=>{const c=e.target.closest('.card');if(c)open(+c.dataset.id)});
+$('#grid').addEventListener('click',e=>{const c=e.target.closest('.card');if(c)openReel(+c.dataset.id)});
 
 let cur=null,activeBeat=0,lastFocus=null,lang='en';
-function open(id){
+function openReel(id){
   cur=DATA.find(d=>d.id===id);activeBeat=0;lastFocus=document.activeElement;
   drawDrawer();$('#scrim').hidden=false;$('#drawer').hidden=false;document.body.style.overflow='hidden';
   $('#drawer .close').focus();
 }
-function close(){$('#scrim').hidden=true;$('#drawer').hidden=true;document.body.style.overflow='';cur=null;lastFocus&&lastFocus.focus&&lastFocus.focus()}
+function closeReel(){$('#scrim').hidden=true;$('#drawer').hidden=true;document.body.style.overflow='';cur=null;lastFocus&&lastFocus.focus&&lastFocus.focus()}
 function drawDrawer(){
   const d=cur,idx=visible.findIndex(x=>x.id===d.id);
   $('#drawer').innerHTML=`<div class="dh">
@@ -566,7 +566,7 @@ function setBeat(i,scroll){activeBeat=i;document.querySelectorAll('#beats .beat'
   $('#octBig').innerHTML=`<g transform="translate(20,0)">${octSVG(300,true,i)}</g>`;
   if(scroll)$('#beat'+i).scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'nearest'})}
 $('#drawer').addEventListener('click',e=>{
-  if(e.target.closest('.close'))return close();
+  if(e.target.closest('.close'))return closeReel();
   const nav=e.target.closest('[data-nav]');if(nav){const idx=visible.findIndex(x=>x.id===cur.id)+ +nav.dataset.nav;if(visible[idx]){cur=visible[idx];activeBeat=0;drawDrawer()}return}
   const node=e.target.closest('.oct-node');if(node)return setBeat(+node.dataset.i,true);
   const beat=e.target.closest('.beat');if(beat&&!e.target.closest('textarea'))return setBeat(+beat.dataset.i,false);
@@ -578,8 +578,8 @@ const rdeb={};
 $('#drawer').addEventListener('input',e=>{const t=e.target;if(t.tagName!=='TEXTAREA'||!cur)return;const id=cur.id,i=t.dataset.i,k=t.dataset.k,key=id+'-'+i+k;
   const sv=document.getElementById('rvSave');if(sv)sv.textContent='…';clearTimeout(rdeb[key]);rdeb[key]=setTimeout(()=>saveReel(id,{b:{[i]:{[k]:t.value}}}),700)});
 $('#drawer').addEventListener('focusin',e=>{const t=e.target;if(t.tagName==='TEXTAREA'&&t.dataset.i!=null&&+t.dataset.i!==activeBeat)setBeat(+t.dataset.i,false)});
-$('#scrim').addEventListener('click',close);
-document.addEventListener('keydown',e=>{if(!cur)return;if(e.key==='Escape')close();
+$('#scrim').addEventListener('click',closeReel);
+document.addEventListener('keydown',e=>{if(!cur)return;if(e.key==='Escape')closeReel();
   if(e.key==='ArrowDown'||e.key==='ArrowUp'){if(e.target.tagName==='INPUT')return;e.preventDefault();setBeat((activeBeat+(e.key==='ArrowDown'?1:7))%8,true)}});
 function copyScript(){
   const d=cur;const txt=`PLEX REEL #${d.id} — ${TITLE_EN[d.id-1]}\nSegment: ${d.seg.map(k=>SEGINFO[k][0]).join(', ')}\nFormat: ${d.f} · Brand value: ${d.v}\n\n`+
@@ -651,7 +651,7 @@ tlBody.addEventListener('focusout',e=>{const el=e.target;if((el.dataset.f==='bri
 tlBody.addEventListener('click',async e=>{
   const ed=e.target.closest('[data-edit]');if(ed){const td=ed.closest('td'),f=ed.dataset.edit,r=tRows.find(x=>x.id===ed.closest('tr').dataset.id);
     td.innerHTML=`<input type="text" data-f="${f}" value="${esc(r[f]||'')}" placeholder="ჩასვი ლინკი">`;const i=td.querySelector('input');i.focus();i.select();return}
-  const lg=e.target.closest('[data-lab]');if(lg){showTab('reels');open(+lg.dataset.lab);return}
+  const lg=e.target.closest('[data-lab]');if(lg){showTab('reels');openReel(+lg.dataset.lab);return}
   const del=e.target.closest('[data-del]');if(del){if(!del.classList.contains('arm')){del.classList.add('arm');del.textContent='Delete?';setTimeout(()=>{del.classList.remove('arm');del.textContent='✕'},3000);return}
     const id=del.closest('tr').dataset.id;const snap=Object.assign({},SRV[id]||{});try{setSave('Saving…');await tdb.doc('timeline/'+id).delete();setSave('Saved ✓');undoStack.push({id,data:snap});updUndo();toast('მწკრივი წაიშალა — Undo აბრუნებს')}catch(err){if(err&&err.code==='invalid_argument')setReadOnly();else toast('წაშლა ვერ მოხერხდა')}}});
 const undoStack=[];function updUndo(){const b=$('#tlUndo');b.hidden=!undoStack.length;b.textContent=undoStack.length>1?`↶ Undo (${undoStack.length})`:'↶ Undo delete'}
